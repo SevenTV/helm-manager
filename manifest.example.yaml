@@ -1,0 +1,18 @@
+log_level: info # set to debug to see each command executed
+
+dry_run: true # If true, no changes will be made to the k8s cluster
+
+repos:
+  - name: bitnami
+    url: https://charts.bitnami.com/bitnami
+
+allowed_envs:
+  - SOME_ENV_VAR # This will allow you to template the values_file yaml. ${SOME_ENV_VAR} will be replaced with the value of the env var.
+
+charts:
+  - name: loki
+    chart: bitnami/grafana-loki
+    namespace: monitoring
+    version: "2.3.3"
+    values_file: values/loki.yaml
+    show_diff: true # if this is off the output yaml will have all default values from the chart
