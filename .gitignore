@@ -14,5 +14,7 @@
 # Dependency directories (remove the comment below to include it)
 # vendor/
 helm-manager
-manifest-lock.yaml
 manifest.yaml
+values/
+templates/
+bin/

@@ -3,6 +3,8 @@ module github.com/seventv/helm-manager
 go 1.19
 
 require (
+	github.com/akamensky/argparse v1.4.0
+	github.com/davecgh/go-spew v1.1.1
 	github.com/jinzhu/copier v0.3.5
 	github.com/mattn/go-colorable v0.1.13
 	go.uber.org/zap v1.23.0

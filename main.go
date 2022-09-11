@@ -4,232 +4,272 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
+	"time"
 
+	"github.com/seventv/helm-manager/updater"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )
 
-func HandleChart(chart Chart, cfg Config, lockMap map[string]ChartLock, envMap map[string]string) (*ChartUpgrade, bool) {
-	values, err := ReadChartValues(chart)
-	alwaysWrite := false
-
-	if err == ErrorNotFound {
+func HandleChart(chart updater.Chart, cfg updater.Config, envMap map[string]string) (updater.ChartUpgrade, bool) {
+	const (
+		LOCK_IDX     = 0
+		VALUES_IDX   = 1
+		DEFAULTS_IDX = 2
+	)
+	values, err := updater.ReadChartValues(chart)
+	if err == updater.ErrorNotFound {
 		err = nil
-		alwaysWrite = true
-		if _, ok := lockMap[chart.Name]; ok {
-			zap.S().Warnf("Chart %s has no values file, but is in lock file", chart.Name)
-			delete(lockMap, chart.Name)
-		} else {
-			zap.S().Infof("No values file found for %s, assuming first time running", chart.Name)
-		}
+		zap.S().Infof("No values file found for %s, assuming first time running", chart.Name)
 	}
 	if err != nil {
 		zap.S().Error("Unable to parse values file for %s", chart.Name)
-		return nil, false
+		return updater.ChartUpgrade{}, false
 	}
 
-	nonDefaultChartValues := values
-
-	// unmerge from the old version of the chart
-	if chartLock, ok := lockMap[chart.Name]; ok {
-		if chartLock.Version != chart.Version {
-			zap.S().Infof("Chart %s version changed from %s to %s", chart.Name, chartLock.Version, chart.Version)
-			c := chart
-			c.Version = chartLock.Version
-			vals := GetNonDefaultChartValues(c, nonDefaultChartValues)
-			if vals.IsZero() {
-				return nil, false
-			}
-
-			nonDefaultChartValues = vals
-		}
-	} else {
-		zap.S().Infof("Chart %s not in lock file, assuming first time running", chart.Name)
+	if !values.IsZero() && values.Kind != yaml.DocumentNode {
+		zap.S().Errorf("Invalid values file for %s", chart.Name)
+		return updater.ChartUpgrade{}, false
 	}
 
-	// update from the new requested version
-	defaultChartValues := GetDefaultChartValues(chart)
+	defaultChartValues := updater.GetDefaultChartValues(chart)
 	if defaultChartValues.IsZero() {
-		return nil, false
+		zap.S().Errorf("No default values found for %s", chart.Name)
+		return updater.ChartUpgrade{}, false
 	}
 
-	nonDefaultChartValues = PruneYaml(defaultChartValues, nonDefaultChartValues)
+	if len(values.Content) == 0 {
+		values = yaml.Node{
+			Kind: yaml.DocumentNode,
+			Content: []*yaml.Node{{
+				Kind:    yaml.MappingNode,
+				Content: []*yaml.Node{},
+				Tag:     "!!map",
+			}, {
+				Kind:    yaml.MappingNode,
+				Content: []*yaml.Node{},
+				Tag:     "!!map",
+			}, &defaultChartValues},
+		}
+	} else if len(values.Content) == 1 {
+		merged := updater.RemoveYamlComments(*values.Content[0])
 
-	// get the full version of the chart
-	fullValues := MergeYaml(defaultChartValues, nonDefaultChartValues)
-	// remove all comments from the full version
-	fullValuesNoComments := RemoveYamlComments(fullValues)
+		values.Content = []*yaml.Node{{
+			Kind:    yaml.MappingNode,
+			Content: []*yaml.Node{},
+			Tag:     "!!map",
+		}, &merged, &defaultChartValues}
+	} else if len(values.Content) == 2 {
+		values.Content = append(values.Content, &defaultChartValues)
+	}
+
+	if len(values.Content) != 3 {
+		zap.S().Errorf("Invalid values file for %s", chart.Name)
+		return updater.ChartUpgrade{}, false
+	}
+
+	oldLock := updater.ChartLock{}
+	values.Content[LOCK_IDX].Decode(&oldLock)
+
+	{
+		merged := updater.PruneYaml(defaultChartValues, updater.MergeYaml(updater.RemoveYamlComments(*values.Content[DEFAULTS_IDX]), *values.Content[VALUES_IDX]))
+		merged.HeadComment = "## This section contains the non-default values for this chart.\n## If you want to change a value, add it here.\n## If you want to reset a value to default, remove it here.\n## If you want to reset all values to default, delete this entire section.\n## You can also modify the section below, any changes there will be reset however they will be copied into this section.\n\n"
+
+		values.Content[VALUES_IDX] = &merged
+		values.Content[DEFAULTS_IDX] = &defaultChartValues
+	}
 
 	// marshal the full version without comments
-	subbedValuesData, err := yaml.Marshal(&fullValuesNoComments)
-	if err != nil {
-		zap.S().Errorf("Failed to marshal values for %s", chart.Name)
-		return nil, false
-	}
+	var envSubbedChartValuesData []byte
+	{
+		// remove all comments from the full version
+		envSubbedChartValuesData, err = updater.MarshalYaml(updater.ToDocument(updater.RemoveYamlComments(updater.MergeYaml(*values.Content[DEFAULTS_IDX], *values.Content[VALUES_IDX]))))
+		if err != nil {
+			zap.S().Errorf("Failed to marshal values for %s", chart.Name)
+			return updater.ChartUpgrade{}, false
+		}
 
-	// substitute the env variables into the full version without comments
-	for env, value := range envMap {
-		subbedValuesData = bytes.ReplaceAll(subbedValuesData, []byte(fmt.Sprintf("${%s}", env)), []byte(value))
+		// substitute the env variables into the full version without comments
+		for env, value := range envMap {
+			envSubbedChartValuesData = bytes.ReplaceAll(envSubbedChartValuesData, []byte(fmt.Sprintf("${%s}", env)), []byte(value))
+		}
 	}
 
 	// create a new lock entry
-	lock := ChartLock{
-		Name:    chart.Name,
+	lock := updater.ChartLock{
 		Version: chart.Version,
 		Chart:   chart.Chart,
-		Hash:    hex.EncodeToString(Sum256(subbedValuesData)),
+		Hash:    hex.EncodeToString(updater.Sum256(envSubbedChartValuesData)),
+		Time:    time.Now(),
+	}
+
+	{ // marshal the lock entry
+		lockData, err := yaml.Marshal(lock)
+		if err != nil {
+			zap.S().Errorf("Failed to marshal lock for %s", chart.Name)
+			return updater.ChartUpgrade{}, false
+		}
+
+		lockNode := yaml.Node{}
+		err = yaml.Unmarshal(lockData, &lockNode)
+		if err != nil {
+			zap.S().Errorf("Failed to unmarshal lock for %s", chart.Name)
+			return updater.ChartUpgrade{}, false
+		}
+
+		lockNode = updater.ConvertDocument(lockNode)
+		lockNode.HeadComment = "## This section is automatically generated by helm-manager. DO NOT EDIT.\n\n"
+		values.Content[LOCK_IDX] = &lockNode
 	}
 
 	// allow for showing only the values that changed from the defaults.
-	var commentedData []byte
-	if chart.ShowDiff {
-		commentedData, err = yaml.Marshal(nonDefaultChartValues)
-	} else {
-		commentedData, err = yaml.Marshal(fullValues)
-	}
+	chartValuesData, err := updater.MarshalYaml(values)
 	if err != nil {
 		zap.S().Errorf("Failed to marshal values for %s", chart.Name)
-		return nil, false
+		return updater.ChartUpgrade{}, false
 	}
 
-	if lock.Hash != lockMap[chart.Name].Hash || chart.AlwaysUpgrade {
-		zap.S().Infof("Chart %s has changed, queued to upgrade.", chart.Name)
-		return &ChartUpgrade{
-			Chart:            chart,
-			ChartLock:        lock,
-			ValuesYaml:       commentedData,
-			SubbedValuesYaml: subbedValuesData,
-			AlwaysWrite:      alwaysWrite,
-		}, true
-	} else {
-		zap.S().Infof("Chart %s has not changed, skipping.", chart.Name)
-		err = os.WriteFile(chart.ValuesFile, commentedData, 0644)
-		if err != nil {
-			return nil, false
-		}
+	err = os.WriteFile(chart.ValuesFile, chartValuesData, 0644)
+	if err != nil {
+		zap.S().Errorf("Failed to write values for %s to %s", chart.Name, chart.ValuesFile)
+		return updater.ChartUpgrade{}, false
 	}
 
-	return nil, true
+	return updater.ChartUpgrade{
+		Chart:            chart,
+		ChartLock:        lock,
+		OldLock:          oldLock,
+		ValuesYaml:       chartValuesData,
+		SubbedValuesYaml: envSubbedChartValuesData,
+	}, true
 }
 
-func WriteLock(lockMap map[string]ChartLock) {
-	newLock := ConfigLock{}
-	for _, chart := range lockMap {
-		newLock.Charts = append(newLock.Charts, chart)
-	}
-
-	buf := bytes.NewBuffer(nil)
-	e := yaml.NewEncoder(buf)
-	e.SetIndent(2)
-	err := e.Encode(&newLock)
-	if err != nil {
-		zap.S().Fatal("Failed to marshal lock file")
-	}
-	err = ioutil.WriteFile("manifest-lock.yaml", buf.Bytes(), 0644)
-	if err != nil {
-		zap.S().Fatal("Failed to write lock file")
-	}
-}
-
-func HandleUpgrade(upgrade ChartUpgrade, cfg Config) bool {
-	if cfg.DryRun {
-		zap.S().Infof("Dry run for %s", upgrade.Chart.Name)
-	} else {
-		zap.S().Infof("Upgrading %s", upgrade.Chart.Name)
-	}
+func HandleUpgrade(cfg updater.Config, upgrade updater.ChartUpgrade) bool {
+	zap.S().Debugf("Upgrading %s", upgrade.Chart.Name)
 
 	chart := upgrade.Chart
 
-	write := func() bool {
-		err := os.MkdirAll(path.Dir(chart.ValuesFile), 0755)
-		if err != nil {
-			zap.S().Errorf("Failed to create directory for %s", chart.Name)
-			return false
+	var args []string
+	if cfg.Arguments.UpdateArgs.GenerateTemplate {
+		args = []string{
+			"template",
+			chart.Name, chart.Chart,
+			"--namespace", chart.Namespace,
+			"--version", chart.Version,
+			"--values", "-",
+			"--create-namespace",
+			"--include-crds",
 		}
-
-		err = os.WriteFile(chart.ValuesFile, upgrade.ValuesYaml, 0644)
-		if err != nil {
-			zap.S().Errorf("Failed to write values file for %s", chart.Name)
-			return false
-		}
-
-		err = os.WriteFile(upgrade.Chart.ValuesFile, upgrade.ValuesYaml, 0644)
-		if err != nil {
-			zap.S().Errorf("Failed to write values file for %s", upgrade.Chart.Name)
-			return false
-		}
-
-		return true
-	}
-
-	var (
-		output []byte
-		err    error
-	)
-	if cfg.DryRun {
-		output, err = ExecuteCommandStdin(bytes.NewReader(upgrade.SubbedValuesYaml), "helm", "upgrade", "--install", chart.Name, chart.Chart, "--namespace", chart.Namespace, "--values", "-", "--version", chart.Version, "--create-namespace", "--dry-run")
 	} else {
-		output, err = ExecuteCommandStdin(bytes.NewReader(upgrade.SubbedValuesYaml), "helm", "upgrade", "--install", chart.Name, chart.Chart, "--namespace", chart.Namespace, "--values", "-", "--version", chart.Version, "--create-namespace")
+		args = []string{
+			"upgrade", "--install",
+			chart.Name, chart.Chart,
+			"--namespace", chart.Namespace,
+			"--values", "-",
+			"--version", chart.Version,
+			"--create-namespace",
+		}
+
+		if cfg.Arguments.UpdateArgs.Wait {
+			args = append(args, "--wait")
+		}
+
+		if cfg.Arguments.UpdateArgs.Atomic {
+			args = append(args, "--atomic")
+		}
+
+		if upgrade.ChartLock.Hash == upgrade.OldLock.Hash && upgrade.ChartLock.Version == upgrade.OldLock.Version && !cfg.Arguments.UpdateArgs.ForceCharts[chart.Name] {
+			zap.S().Infof("Skipping %s for upgrade, no changes detected", chart.Name)
+			return true
+		}
 	}
+
+	if cfg.Arguments.UpdateArgs.DryRun {
+		args = append(args, "--dry-run")
+	}
+
+	output, err := updater.ExecuteCommandStdin(bytes.NewReader(upgrade.SubbedValuesYaml), "helm", args...)
 	if err != nil {
 		zap.S().Errorf("Failed to upgrade chart %s\n%s", chart.Name, output)
-		if upgrade.AlwaysWrite {
-			return write()
-		}
-
 		return false
 	}
 
-	zap.S().Infof("Successfully upgraded chart %s", chart.Name)
+	if cfg.Arguments.UpdateArgs.GenerateTemplate {
+		if cfg.Arguments.UpdateArgs.TemplateOutputDir != "" {
+			err = os.MkdirAll(cfg.Arguments.UpdateArgs.TemplateOutputDir, 0755)
+			if err != nil {
+				zap.S().Error("Failed to create directory generated templates")
+				return false
+			}
+		}
 
-	return write()
+		err = os.WriteFile(path.Join(cfg.Arguments.UpdateArgs.TemplateOutputDir, fmt.Sprintf("%s-template.yaml", chart.Name)), output, 0644)
+		if err != nil {
+			zap.S().Errorf("Failed to write template file for %s", chart.Name)
+			return false
+		}
+
+		zap.S().Infof("Generated template for %s", chart.Name)
+	} else {
+		zap.S().Infof("Successfully upgraded chart %s", chart.Name)
+	}
+
+	return true
 }
 
 func main() {
-	cfg := GetConfig()
+	cfg := updater.GetConfig()
 
 	zap.S().Infof("* Helm Manager Starting *")
 
-	lockMap := GetLock()
-	envMap := CreateEnvMap(cfg)
+	envMap := updater.CreateEnvMap(cfg)
 
-	ValidateCharts(cfg)
-	UpdateRepos(cfg)
+	updater.ValidateCharts(cfg)
+	updater.UpdateRepos(cfg)
 
-	newLockMap := map[string]ChartLock{}
-	upgradeList := []ChartUpgrade{}
+	newLockMap := map[string]updater.ChartLock{}
+	upgradeList := []updater.ChartUpgrade{}
 
 	if len(cfg.Charts) == 0 {
 		zap.S().Warn("No charts to manage")
-	} else {
-		zap.S().Infof("%d charts to manage", len(cfg.Charts))
 	}
+
+	zap.S().Debug("Updating values")
 
 	for _, chart := range cfg.Charts {
-		chartUpgrade, success := HandleChart(chart, cfg, lockMap, envMap)
-		if !success {
-			if _, ok := lockMap[chart.Name]; ok {
-				newLockMap[chart.Name] = lockMap[chart.Name]
-			}
+		if cfg.Arguments.UpdateArgs.IgnoreChartsMap[chart.Name] {
+			zap.S().Infof("Skipping %s, ignored", chart.Name)
 			continue
-		} else if chartUpgrade != nil {
-			newLockMap[chart.Name] = chartUpgrade.ChartLock
-			upgradeList = append(upgradeList, *chartUpgrade)
+		}
+
+		chartUpgrade, success := HandleChart(chart, cfg, envMap)
+		if !success {
+			if cfg.Arguments.UpdateArgs.StopOnFirstError {
+				zap.S().Fatalf("Failed to upgrade chart values %s", chart.Name)
+			}
+
+			continue
 		} else {
-			newLockMap[chart.Name] = lockMap[chart.Name]
+			newLockMap[chart.Name] = chartUpgrade.ChartLock
+			upgradeList = append(upgradeList, chartUpgrade)
 		}
 	}
 
-	for _, upgrade := range upgradeList {
-		if !HandleUpgrade(upgrade, cfg) {
-			delete(newLockMap, upgrade.Chart.Name)
-		}
-	}
+	zap.S().Debug("Finished updating values")
 
-	WriteLock(newLockMap)
+	if cfg.Arguments.Mode.Update() && len(upgradeList) > 0 {
+		zap.S().Debug("Updating cluster")
+
+		for _, upgrade := range upgradeList {
+			if !HandleUpgrade(cfg, upgrade) && cfg.Arguments.UpdateArgs.StopOnFirstError {
+				zap.S().Fatalf("Failed to upgrade chart %s, failing fast", upgrade.Chart.Name)
+			}
+		}
+
+		zap.S().Debug("Finished updating cluster")
+	}
 
 	zap.S().Infof("* Helm Manager Finished *")
 }
