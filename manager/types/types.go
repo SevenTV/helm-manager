@@ -1,13 +1,26 @@
-package updater
+package types
 
-import "time"
+import (
+	"time"
+
+	"github.com/seventv/helm-manager/manager/cli"
+)
 
 type Config struct {
 	Repos      []Repo   `yaml:"repos"`
 	AllowedEnv []string `yaml:"allowed_env"`
 	Charts     []Chart  `yaml:"charts"`
+	Singles    []Single `yaml:"singles"`
 
-	Arguments CommandArgs `yaml:"-"`
+	Exists    bool          `yaml:"-"`
+	Arguments cli.Arguments `yaml:"-"`
+}
+
+type Single struct {
+	Name      string `yaml:"name"`
+	Namespace string `yaml:"namespace"`
+	File      string `yaml:"file"`
+	UseCreate bool   `yaml:"use_create"`
 }
 
 type Repo struct {
@@ -16,11 +29,12 @@ type Repo struct {
 }
 
 type Chart struct {
-	Name       string `yaml:"name"`
-	Chart      string `yaml:"chart"`
-	Namespace  string `yaml:"namespace"`
-	Version    string `yaml:"version"`
-	ValuesFile string `yaml:"values_file"`
+	Name      string `yaml:"name"`
+	Chart     string `yaml:"chart"`
+	Namespace string `yaml:"namespace"`
+	Version   string `yaml:"version"`
+
+	File string `yaml:"-"`
 }
 
 type ChartUpgrade struct {

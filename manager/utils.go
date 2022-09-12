@@ -1,4 +1,4 @@
-package updater
+package manager
 
 import (
 	"crypto/sha256"
@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/jinzhu/copier"
+	"github.com/seventv/helm-manager/manager/types"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )
@@ -27,8 +28,8 @@ func ExecuteCommandStdin(stdin io.Reader, name string, args ...string) ([]byte, 
 	return cmd.CombinedOutput()
 }
 
-func ParseHelmRepos(data []byte) ([]Repo, error) {
-	repos := []Repo{}
+func ParseHelmRepos(data []byte) ([]types.Repo, error) {
+	repos := []types.Repo{}
 	err := json.Unmarshal(data, &repos)
 	if err != nil {
 		return repos, err
@@ -37,8 +38,8 @@ func ParseHelmRepos(data []byte) ([]Repo, error) {
 	return repos, nil
 }
 
-func ReadChartValues(chart Chart) (yaml.Node, error) {
-	values, err := os.ReadFile(chart.ValuesFile)
+func ReadChartValues(chart types.Chart) (yaml.Node, error) {
+	values, err := os.ReadFile(chart.File)
 	if err != nil {
 		return yaml.Node{}, ErrorNotFound
 	}
@@ -87,7 +88,7 @@ func RemoveYamlComments(node yaml.Node) yaml.Node {
 	return newNode
 }
 
-func GetDefaultChartValues(chart Chart) yaml.Node {
+func GetDefaultChartValues(chart types.Chart) yaml.Node {
 	out, err := ExecuteCommand("helm", "show", "values", chart.Chart, "--version", chart.Version)
 	if err != nil {
 		zap.S().Errorf("Failed to get values for %s", chart.Name)
@@ -103,7 +104,7 @@ func GetDefaultChartValues(chart Chart) yaml.Node {
 	return ConvertDocument(chartValues)
 }
 
-func GetNonDefaultChartValues(chart Chart, values yaml.Node) yaml.Node {
+func GetNonDefaultChartValues(chart types.Chart, values yaml.Node) yaml.Node {
 	chartValues := GetDefaultChartValues(chart)
 	if NodeIsZero(chartValues) {
 		return yaml.Node{}
@@ -112,7 +113,7 @@ func GetNonDefaultChartValues(chart Chart, values yaml.Node) yaml.Node {
 	return PruneYaml(chartValues, values)
 }
 
-func UpdateRepos(cfg Config) {
+func UpdateRepos(cfg types.Config) {
 	zap.S().Debug("Updating repos")
 
 	repoMap := CreateRepoMap(cfg)
@@ -131,7 +132,7 @@ func UpdateRepos(cfg Config) {
 		zap.S().Fatal("Failed to parse helm repo list")
 	}
 
-	installedReposMap := map[string]Repo{}
+	installedReposMap := map[string]types.Repo{}
 	for _, repo := range repos {
 		installedReposMap[repo.Name] = repo
 	}

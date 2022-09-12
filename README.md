@@ -5,12 +5,20 @@ It can automatically sync newer versions of charts onto older value files.
 
 Look at the [manifest.example.yaml](./manifest.example.yaml) file to understand the structure.
 
-Running this command without a `manifest.yaml` will cause it to create one.
-
 ## Purpose
 
 The purpose of this tool is so that you can easily update helm chart values and changes are kept in sync.
 Currently as far as I know there is no alternative to this tool.
+
+Essentially, this tool is designed to maintain `package.json` like manifest which can be used to easily upgrade the cluster's helm charts.
+You can add new charts via
+
+```bash
+helm-manager add chart [NAME] [CHART] --version [VERSION] --namespace [NAMESPACE]
+```
+
+and this chart will then be maintained by tool.
+Changes will be applied to the cluster and is managed by helm's upgrade tool.
 
 ## Requirements
 

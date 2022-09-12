@@ -18,3 +18,5 @@ manifest.yaml
 values/
 templates/
 bin/
+charts/
+singles/
