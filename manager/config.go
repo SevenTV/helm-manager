@@ -70,8 +70,6 @@ func GetConfig() types.Config {
 		zap.S().Fatalf("Error reading config file: %s", err)
 	} else if err != ErrorNotFound {
 		config.Exists = true
-	} else {
-		zap.S().Warn(args.ManifestFile)
 	}
 
 	config.Arguments = args

@@ -15,7 +15,6 @@ type Upgrade struct {
 	StopOnFirstError  bool
 	TemplateOutputDir string
 	IgnoreChartsMap   map[string]bool
-	ForceCharts       map[string]bool
 	ChartWhitelist    map[string]bool
 }
 
@@ -41,11 +40,6 @@ func UpgradeCli(parser argparse.Parser) Trigger {
 	upgradeIgnoreChartsFlag := cmd.StringList("", "ignore", &argparse.OptionsList[string]{
 		Required: false,
 		Help:     "The charts to ignore",
-	})
-
-	upgradeForceChartsFlag := cmd.StringList("", "force", &argparse.OptionsList[string]{
-		Required: false,
-		Help:     "The charts to force upgrade",
 	})
 
 	upgradeOnlyChartsFlag := cmd.StringList("", "only", &argparse.OptionsList[string]{
@@ -81,23 +75,15 @@ func UpgradeCli(parser argparse.Parser) Trigger {
 		args.Upgrade.Atomic = *upgradeAtomicFlag
 		args.Upgrade.StopOnFirstError = !*upgradeNoStopOnFirstErrorFlag
 
-		args.Upgrade.ForceCharts = map[string]bool{}
 		args.Upgrade.IgnoreChartsMap = map[string]bool{}
 		args.Upgrade.ChartWhitelist = map[string]bool{}
 
 		for _, name := range *upgradeIgnoreChartsFlag {
 			args.Upgrade.IgnoreChartsMap[name] = true
 		}
-		for _, name := range *upgradeForceChartsFlag {
-			if args.Upgrade.IgnoreChartsMap[name] {
-				zap.S().Fatalf("Invalid argument chart %s is both ignored and forced", name)
-			}
 
-			args.Upgrade.ForceCharts[name] = true
-		}
-
-		if len(*upgradeOnlyChartsFlag) > 0 && (len(args.Upgrade.ForceCharts) > 0 || len(args.Upgrade.IgnoreChartsMap) > 0) {
-			zap.S().Fatalf("Invalid argument --only cannot be used with --ignore or --force")
+		if len(*upgradeOnlyChartsFlag) > 0 && len(args.Upgrade.IgnoreChartsMap) > 0 {
+			zap.S().Fatalf("Invalid argument --only cannot be used with --ignore")
 		}
 
 		for _, name := range *upgradeOnlyChartsFlag {

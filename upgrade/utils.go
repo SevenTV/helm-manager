@@ -2,11 +2,9 @@ package upgrade
 
 import (
 	"bytes"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"path"
-	"time"
 
 	"github.com/seventv/helm-manager/manager"
 	"github.com/seventv/helm-manager/manager/types"
@@ -102,12 +100,6 @@ func HandleChart(chart types.Chart, envMap map[string]string, emptyHash bool) (t
 	lock := types.ChartLock{
 		Version: chart.Version,
 		Chart:   chart.Chart,
-		Hash:    hex.EncodeToString(manager.Sum256(envSubbedChartValuesData)),
-		Time:    time.Now(),
-	}
-
-	if emptyHash {
-		lock.Hash = ""
 	}
 
 	{ // marshal the lock entry
@@ -190,11 +182,6 @@ func HandleUpgrade(cfg types.Config, upgrade types.ChartUpgrade) bool {
 
 		if cfg.Arguments.Upgrade.Atomic {
 			args = append(args, "--atomic")
-		}
-
-		if upgrade.ChartLock.Hash == upgrade.OldLock.Hash && upgrade.ChartLock.Version == upgrade.OldLock.Version && !cfg.Arguments.Upgrade.ForceCharts[chart.Name] {
-			zap.S().Infof("Skipping %s for upgrade, no changes detected", chart.Name)
-			return true
 		}
 	}
 

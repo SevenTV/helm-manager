@@ -1,8 +1,6 @@
 package types
 
 import (
-	"time"
-
 	"github.com/seventv/helm-manager/manager/cli"
 )
 
@@ -47,8 +45,6 @@ type ChartUpgrade struct {
 }
 
 type ChartLock struct {
-	Chart   string    `yaml:"chart"`
-	Version string    `yaml:"version"`
-	Hash    string    `yaml:"hash"`
-	Time    time.Time `yaml:"time"`
+	Chart   string `yaml:"chart"`
+	Version string `yaml:"version"`
 }

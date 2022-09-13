@@ -30,6 +30,11 @@ func Run(cfg types.Config) {
 			continue
 		}
 
+		if len(cfg.Arguments.Upgrade.ChartWhitelist) != 0 && !cfg.Arguments.Upgrade.ChartWhitelist[chart.Name] {
+			zap.S().Infof("Skipping %s, not in whitelist", chart.Name)
+			continue
+		}
+
 		chartUpgrade, success := HandleChart(chart, envMap, false)
 		if !success {
 			if cfg.Arguments.Upgrade.StopOnFirstError {

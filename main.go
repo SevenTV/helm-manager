@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/seventv/helm-manager/add"
+	i "github.com/seventv/helm-manager/init"
 	"github.com/seventv/helm-manager/manager"
 	"github.com/seventv/helm-manager/manager/cli"
 	"github.com/seventv/helm-manager/remove"
@@ -14,7 +15,12 @@ func main() {
 
 	switch cfg.Arguments.Mode {
 	case cli.CommandModeInit:
-		manager.WriteConfig(cfg)
+		zap.S().Info("* Helm Manager Init *")
+		if cfg.Exists {
+			zap.S().Fatalf("manifest.yaml alredy exists")
+		}
+
+		i.Run(cfg)
 	case cli.CommandModeUpgrade:
 		zap.S().Info("* Helm Manager Upgrade *")
 		if !cfg.Exists {
