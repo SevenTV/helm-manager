@@ -8,11 +8,77 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/manifoldco/promptui"
 	"github.com/seventv/helm-manager/manager/types"
 	"github.com/seventv/helm-manager/manager/utils"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )
+
+func runUpgradeCharts(cfg types.Config) {
+	if len(cfg.Charts) == 0 {
+		utils.Fatal("No charts or singles found in manifest")
+	}
+
+	envMap := utils.CreateEnvMap(cfg)
+
+	utils.UpdateRepos(cfg)
+
+	newLockMap := map[string]types.ChartLock{}
+	upgradeList := []types.ChartUpgrade{}
+
+	for _, chart := range cfg.Charts {
+		if cfg.Arguments.Upgrade.IgnoreMap[chart.Name] {
+			utils.Info("Skipping %s, ignored", chart.Name)
+			continue
+		}
+
+		if len(cfg.Arguments.Upgrade.WhitelistMap) != 0 && !cfg.Arguments.Upgrade.WhitelistMap[chart.Name] {
+			utils.Info("Skipping %s, not in whitelist", chart.Name)
+			continue
+		}
+
+		chartUpgrade, success := HandleChart(cfg, chart, envMap)
+		if !success {
+			if cfg.Arguments.Upgrade.StopOnFirstError {
+				utils.Fatal("Failed to upgrade chart values %s", chart.Name)
+			}
+
+			continue
+		} else {
+			newLockMap[chart.Name] = chartUpgrade.ChartLock
+			upgradeList = append(upgradeList, chartUpgrade)
+		}
+	}
+
+	if !cfg.Arguments.Upgrade.DryRun && !cfg.Arguments.Upgrade.Charts.Deploy && !cfg.Arguments.NonInteractive {
+		prompt := promptui.Prompt{
+			Label:     "Are you sure you want to deploy these changes",
+			IsConfirm: true,
+		}
+
+		_, err := prompt.Run()
+		if err != nil && err != promptui.ErrAbort {
+			zap.S().Fatal(err)
+		}
+
+		cfg.Arguments.Upgrade.Charts.Deploy = err == nil
+
+		if !cfg.Arguments.Upgrade.Charts.Deploy {
+			utils.Fatal("Aborted")
+		}
+	}
+
+	if cfg.Arguments.Upgrade.Charts.Deploy {
+		if len(upgradeList) > 0 {
+			for _, upgrade := range upgradeList {
+				if !HandleUpgrade(cfg, upgrade) && cfg.Arguments.Upgrade.StopOnFirstError {
+					utils.Fatal("Failed to upgrade chart %s, failing fast", upgrade.Chart.Name)
+				}
+			}
+		}
+	}
+}
 
 func HandleChart(cfg types.Config, chart types.Chart, envMap map[string]string) (types.ChartUpgrade, bool) {
 	const (
@@ -247,13 +313,13 @@ func HandleUpgrade(cfg types.Config, upgrade types.ChartUpgrade) bool {
 					i++
 				case success := <-waiting:
 					if success {
-						if cfg.Arguments.Upgrade.GenerateTemplate {
+						if cfg.Arguments.Upgrade.Charts.GenerateTemplate {
 							zap.S().Infof("%s Chart template generated %s", color.GreenString("✓"), upgrade.Chart.Name)
 						} else {
 							zap.S().Infof("%s Chart upgraded %s", color.GreenString("✓"), upgrade.Chart.Name)
 						}
 					} else {
-						if cfg.Arguments.Upgrade.GenerateTemplate {
+						if cfg.Arguments.Upgrade.Charts.GenerateTemplate {
 							zap.S().Infof("%s Failed to generate chart template %s", color.RedString("✗"), upgrade.Chart.Name)
 						} else {
 							zap.S().Infof("%s Failed to upgrade for chart %s", color.RedString("✗"), upgrade.Chart.Name)
@@ -265,13 +331,13 @@ func HandleUpgrade(cfg types.Config, upgrade types.ChartUpgrade) bool {
 		} else {
 			utils.Info("Upgrading Chart %s...", upgrade.Chart.Name)
 			if <-waiting {
-				if cfg.Arguments.Upgrade.GenerateTemplate {
+				if cfg.Arguments.Upgrade.Charts.GenerateTemplate {
 					utils.Info("Chart template generated %s", upgrade.Chart.Name)
 				} else {
 					utils.Info("Chart %s upgraded", upgrade.Chart.Name)
 				}
 			} else {
-				if cfg.Arguments.Upgrade.GenerateTemplate {
+				if cfg.Arguments.Upgrade.Charts.GenerateTemplate {
 					utils.Info("Failed to generate templates for chart %s", upgrade.Chart.Name)
 				} else {
 					utils.Info("Failed to upgrade chart %s", upgrade.Chart.Name)
@@ -283,7 +349,7 @@ func HandleUpgrade(cfg types.Config, upgrade types.ChartUpgrade) bool {
 	chart := upgrade.Chart
 
 	var args []string
-	if cfg.Arguments.Upgrade.GenerateTemplate {
+	if cfg.Arguments.Upgrade.Charts.GenerateTemplate {
 		args = []string{
 			"template",
 			chart.Name, chart.Chart,
@@ -307,7 +373,7 @@ func HandleUpgrade(cfg types.Config, upgrade types.ChartUpgrade) bool {
 			args = append(args, "--wait")
 		}
 
-		if cfg.Arguments.Upgrade.Atomic {
+		if cfg.Arguments.Upgrade.Charts.Atomic {
 			args = append(args, "--atomic")
 		}
 	}
@@ -324,9 +390,9 @@ func HandleUpgrade(cfg types.Config, upgrade types.ChartUpgrade) bool {
 		return false
 	}
 
-	if cfg.Arguments.Upgrade.GenerateTemplate {
-		if cfg.Arguments.Upgrade.TemplateOutputDir != "" {
-			err = os.MkdirAll(cfg.Arguments.Upgrade.TemplateOutputDir, 0755)
+	if cfg.Arguments.Upgrade.Charts.GenerateTemplate {
+		if cfg.Arguments.Upgrade.Charts.TemplateOutputDir != "" {
+			err = os.MkdirAll(cfg.Arguments.Upgrade.Charts.TemplateOutputDir, 0755)
 			if err != nil {
 				waiting <- false
 				<-finished
@@ -335,80 +401,13 @@ func HandleUpgrade(cfg types.Config, upgrade types.ChartUpgrade) bool {
 			}
 		}
 
-		err = os.WriteFile(path.Join(cfg.Arguments.Upgrade.TemplateOutputDir, fmt.Sprintf("%s-template.yaml", chart.Name)), output, 0644)
+		err = os.WriteFile(path.Join(cfg.Arguments.Upgrade.Charts.TemplateOutputDir, fmt.Sprintf("%s-template.yaml", chart.Name)), output, 0644)
 		if err != nil {
 			waiting <- false
 			<-finished
 			utils.Error("Failed to write template file for %s", chart.Name)
 			return false
 		}
-	}
-
-	waiting <- true
-	<-finished
-
-	return true
-}
-
-func HandleSingle(cfg types.Config, single types.Single) bool {
-	waiting := make(chan bool)
-	finished := make(chan struct{})
-	go func() {
-		defer close(waiting)
-		defer close(finished)
-
-		if cfg.Arguments.InTerminal {
-			t := time.NewTicker(200 * time.Millisecond)
-			defer t.Stop()
-			i := 0
-			stages := []string{"\\", "|", "/", "-"}
-			for {
-				select {
-				case <-t.C:
-					zap.S().Infof("%s [%s]\r", color.YellowString("Upgrading single %s", single.Name), color.CyanString("%s", stages[i%len(stages)]))
-					i++
-				case success := <-waiting:
-					if success {
-						zap.S().Infof("%s Single upgraded %s", color.GreenString("✓"), single.Name)
-					} else {
-						zap.S().Infof("%s Failed to upgrade single %s", color.RedString("✗"), single.Name)
-					}
-					return
-				}
-			}
-		} else {
-			utils.Info("Upgrading single %s...", single.Name)
-			if <-waiting {
-				utils.Info("Single %s upgrade", single.Name)
-			} else {
-				utils.Info("Failed to upgrade single %s", single.Name)
-			}
-		}
-	}()
-
-	args := []string{"apply", "-n", single.Namespace, "-f", "-"}
-	if cfg.Arguments.Upgrade.DryRun {
-		args = append(args, "--dry-run")
-	}
-
-	data, err := os.ReadFile(path.Join(cfg.Arguments.WorkingDir, "singles", fmt.Sprintf("%s.yaml", single.Name)))
-	if err != nil {
-		waiting <- false
-		<-finished
-		utils.Error("Failed to read single file %s: %v", single.Name, err)
-		return false
-	}
-
-	if single.UseCreate {
-		args[0] = "create"
-	}
-
-	_, err = utils.ExecuteCommandStdin(bytes.NewReader(data), "kubectl", args...)
-	if err != nil {
-		waiting <- false
-		<-finished
-		zap.S().Errorf("Failed to upgrade single %s: %v", single.Name, err)
-		return false
 	}
 
 	waiting <- true

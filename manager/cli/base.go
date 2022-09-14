@@ -25,6 +25,8 @@ const (
 	CommandModeInit
 
 	CommandModeUpgrade
+	CommandModeUpgradeCharts
+	CommandModeUpgradeSingles
 
 	CommandModeAdd
 	CommandModeAddChart
@@ -50,7 +52,9 @@ var BaseCommand = Command{
 type Arguments struct {
 	WorkingDir   string
 	ManifestFile string
-	InTerminal   bool
+
+	InTerminal     bool
+	NonInteractive bool
 
 	Debug   bool
 	Mode    CommandMode
@@ -60,7 +64,7 @@ type Arguments struct {
 	Update  Update
 }
 
-func BaseCli(parser argparse.Parser, args Arguments) Trigger {
+func BaseCli(parser argparse.Command, args Arguments) Trigger {
 	debugFlag := parser.Flag("", "debug", &argparse.Options[bool]{
 		Required: false,
 		Help:     "Enable debug logging",
@@ -72,16 +76,14 @@ func BaseCli(parser argparse.Parser, args Arguments) Trigger {
 	})
 	cli := parser.Flag("", "cli", &argparse.Options[bool]{
 		Required: false,
-		Help:     "CLI Mode Only (Non-Interactive Mode)",
+		Help:     "Non-Interactive Mode",
 	})
 
 	return func(args *Arguments) error {
 		args.Debug = *debugFlag
 		args.ManifestFile = *manifestFileFlag
 		args.WorkingDir = path.Dir(args.ManifestFile)
-		if args.InTerminal {
-			args.InTerminal = !*cli
-		}
+		args.NonInteractive = *cli || !args.InTerminal
 
 		args.Mode = CommandModeBase
 

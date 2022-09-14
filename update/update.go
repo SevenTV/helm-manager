@@ -30,7 +30,7 @@ func Run(cfg types.Config) {
 		chartMp[c.Name] = idx
 	}
 
-	if !cfg.Arguments.Update.List && cfg.Arguments.InTerminal && cfg.Arguments.Update.Name == "" && cfg.Arguments.Update.Version == "" {
+	if !cfg.Arguments.Update.List && !cfg.Arguments.NonInteractive && cfg.Arguments.Update.Name == "" && cfg.Arguments.Update.Version == "" {
 		prompt := promptui.Prompt{
 			Label:     "Do you want to list all updates",
 			IsConfirm: true,
@@ -53,7 +53,7 @@ func Run(cfg types.Config) {
 	}
 
 	if cfg.Arguments.Update.Name == "" && !cfg.Arguments.Update.List {
-		if cfg.Arguments.InTerminal {
+		if !cfg.Arguments.NonInteractive {
 			names := []string{}
 			for _, chart := range cfg.Charts {
 				names = append(names, chart.Name)
@@ -90,7 +90,7 @@ func Run(cfg types.Config) {
 		chart := cfg.Charts[idx]
 
 		if cfg.Arguments.Update.Version == "" {
-			if cfg.Arguments.InTerminal {
+			if !cfg.Arguments.NonInteractive {
 				versions := helmChartMp[chart.Chart].Children
 
 				prompt := promptui.Select{

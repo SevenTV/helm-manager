@@ -22,7 +22,7 @@ func runRemoveSingle(cfg types.Config) {
 	}
 
 	if cfg.Arguments.Remove.Single.Name == "" {
-		if cfg.Arguments.InTerminal {
+		if !cfg.Arguments.NonInteractive {
 			prompt := promptui.Select{
 				Label: "Name",
 				Items: cfg.Singles,
@@ -45,7 +45,7 @@ func runRemoveSingle(cfg types.Config) {
 		}
 	}
 
-	if cfg.Arguments.InTerminal && !cfg.Arguments.Remove.Single.DryRun {
+	if !cfg.Arguments.NonInteractive && !cfg.Arguments.Remove.Single.DryRun {
 		prompt := promptui.Prompt{
 			Label:     "Do you want to do a dry run",
 			IsConfirm: true,
@@ -94,7 +94,7 @@ func runRemoveSingle(cfg types.Config) {
 	}
 
 	if !cfg.Arguments.Remove.Single.Confirm && !cfg.Arguments.Remove.Single.DryRun {
-		if cfg.Arguments.InTerminal {
+		if !cfg.Arguments.NonInteractive {
 			prompt := promptui.Prompt{
 				Label:     "Are you sure you want to delete this single",
 				IsConfirm: true,
@@ -169,7 +169,7 @@ func runRemoveSingle(cfg types.Config) {
 	if !cfg.Arguments.Remove.Single.DryRun {
 		utils.WriteConfig(cfg)
 
-		if cfg.Arguments.InTerminal && !cfg.Arguments.Remove.Single.Delete {
+		if !cfg.Arguments.NonInteractive && !cfg.Arguments.Remove.Single.Delete {
 			prompt := promptui.Prompt{
 				Label:     "Do you want to delete the single file",
 				IsConfirm: true,

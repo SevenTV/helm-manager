@@ -90,7 +90,7 @@ func AddChartCli(addCmd argparse.Command, args Arguments) Trigger {
 	})
 
 	chartVersionFlag := addChartCmd.String("v", "version", &argparse.Options[string]{
-		Required: !args.InTerminal,
+		Required: !args.NonInteractive,
 		Help:     "The version of the chart",
 	})
 
@@ -100,7 +100,7 @@ func AddChartCli(addCmd argparse.Command, args Arguments) Trigger {
 	})
 
 	chartNamespaceFlag := addChartCmd.String("n", "namespace", &argparse.Options[string]{
-		Required: !args.InTerminal,
+		Required: !args.NonInteractive,
 		Help:     "The namespace to install the chart into",
 	})
 
@@ -127,7 +127,7 @@ func AddChartCli(addCmd argparse.Command, args Arguments) Trigger {
 			return errors.New("name cannot be specified twice")
 		}
 
-		if args.Add.Chart.Name == "" && !args.InTerminal {
+		if args.Add.Chart.Name == "" && args.NonInteractive {
 			return errors.New("no chart name provided")
 		}
 
@@ -138,7 +138,7 @@ func AddChartCli(addCmd argparse.Command, args Arguments) Trigger {
 			return errors.New("chart cannot be specified twice")
 		}
 
-		if args.Add.Chart.Chart == "" && !args.InTerminal {
+		if args.Add.Chart.Chart == "" && args.NonInteractive {
 			return errors.New("no chart provided")
 		}
 
@@ -149,7 +149,7 @@ func AddChartCli(addCmd argparse.Command, args Arguments) Trigger {
 			return errors.New("version cannot be specified twice")
 		}
 
-		if args.Add.Chart.Version == "" && !args.InTerminal {
+		if args.Add.Chart.Version == "" && args.NonInteractive {
 			return errors.New("no chart version provided")
 		}
 
@@ -160,7 +160,7 @@ func AddChartCli(addCmd argparse.Command, args Arguments) Trigger {
 			return errors.New("namespace cannot be specified twice")
 		}
 
-		if args.Add.Chart.Namespace == "" && !args.InTerminal {
+		if args.Add.Chart.Namespace == "" && args.NonInteractive {
 			return errors.New("no chart namespace provided")
 		}
 
@@ -236,7 +236,7 @@ func AddSingleCli(addCmd argparse.Command, args Arguments) Trigger {
 			return errors.New("name cannot be specified twice")
 		}
 
-		if args.Add.Single.Name == "" && !args.InTerminal {
+		if args.Add.Single.Name == "" && args.NonInteractive {
 			return errors.New("no single name provided")
 		}
 
@@ -247,12 +247,12 @@ func AddSingleCli(addCmd argparse.Command, args Arguments) Trigger {
 			return errors.New("namespace cannot be specified twice")
 		}
 
-		if args.Add.Single.Namespace == "" && !args.InTerminal {
+		if args.Add.Single.Namespace == "" && args.NonInteractive {
 			return errors.New("no single namespace provided")
 		}
 
 		args.Add.Single.File = *singleValuesFileFlag
-		if args.Add.Single.File == "" && !args.InTerminal {
+		if args.Add.Single.File == "" && args.NonInteractive {
 			return errors.New("no single file provided")
 		}
 
@@ -310,7 +310,7 @@ func AddRepoCli(addCmd argparse.Command, args Arguments) Trigger {
 			return errors.New("name cannot be specified twice")
 		}
 
-		if args.Add.Repo.Name == "" && !args.InTerminal {
+		if args.Add.Repo.Name == "" && args.NonInteractive {
 			return errors.New("no repo name provided")
 		}
 
@@ -321,7 +321,7 @@ func AddRepoCli(addCmd argparse.Command, args Arguments) Trigger {
 			return errors.New("url cannot be specified twice")
 		}
 
-		if args.Add.Repo.URL == "" && !args.InTerminal {
+		if args.Add.Repo.URL == "" && args.NonInteractive {
 			return errors.New("no repo url provided")
 		}
 
@@ -365,7 +365,7 @@ func AddEnvCli(addCmd argparse.Command, args Arguments) Trigger {
 			return errors.New("name cannot be specified twice")
 		}
 
-		if args.Add.Env.Name == "" && !args.InTerminal {
+		if args.Add.Env.Name == "" && args.NonInteractive {
 			return errors.New("no env name provided")
 		}
 

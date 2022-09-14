@@ -18,7 +18,7 @@ type Update struct {
 	List    bool
 }
 
-func UpdateCli(parser argparse.Parser, args Arguments) Trigger {
+func UpdateCli(parser argparse.Command, args Arguments) Trigger {
 	updateCmd := parser.NewCommand(UpdateCommand.Name, UpdateCommand.Help)
 
 	updateNameFlag := updateCmd.String("", "name", &argparse.Options[string]{
@@ -68,7 +68,7 @@ func UpdateCli(parser argparse.Parser, args Arguments) Trigger {
 			return errors.New("cannot specify version twice")
 		}
 
-		if !args.InTerminal {
+		if args.NonInteractive {
 			if !args.Update.List {
 				if args.Update.Name == "" {
 					return errors.New("name is required")

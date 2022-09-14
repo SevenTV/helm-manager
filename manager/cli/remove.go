@@ -22,7 +22,7 @@ var RemoveCommand = Command{
 // const RemoveCommandHelp = "Remove a chart, single, repo or env variable from the manifest"
 // const RemoveCommand = "remove"
 
-func RemoveCli(parser argparse.Parser, args Arguments) Trigger {
+func RemoveCli(parser argparse.Command, args Arguments) Trigger {
 	removeCmd := parser.NewCommand(RemoveCommand.Name, RemoveCommand.Help)
 
 	triggers := []Trigger{
@@ -109,7 +109,7 @@ func RemoveChartCli(removeCmd argparse.Command, args Arguments) Trigger {
 			return errors.New("chart name cannot be specified twice")
 		}
 
-		if args.Remove.Chart.Name == "" && !args.InTerminal {
+		if args.Remove.Chart.Name == "" && args.NonInteractive {
 			return errors.New("chart name is required")
 		}
 
@@ -176,7 +176,7 @@ func RemoveSingleCli(removeCmd argparse.Command, args Arguments) Trigger {
 			return errors.New("single name cannot be specified twice")
 		}
 
-		if args.Remove.Single.Name == "" && !args.InTerminal {
+		if args.Remove.Single.Name == "" && args.NonInteractive {
 			return errors.New("single name is required")
 		}
 
@@ -224,7 +224,7 @@ func RemoveRepoCli(removeCmd argparse.Command, args Arguments) Trigger {
 			return errors.New("repo name cannot be specified twice")
 		}
 
-		if args.Remove.Repo.Name == "" && !args.InTerminal {
+		if args.Remove.Repo.Name == "" && args.NonInteractive {
 			return errors.New("repo name is required")
 		}
 
@@ -268,7 +268,7 @@ func RemoveEnvCli(removeCmd argparse.Command, args Arguments) Trigger {
 			return errors.New("env name cannot be specified twice")
 		}
 
-		if args.Remove.Env.Name == "" && !args.InTerminal {
+		if args.Remove.Env.Name == "" && args.NonInteractive {
 			return errors.New("env name is required")
 		}
 

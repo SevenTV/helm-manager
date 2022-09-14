@@ -22,7 +22,7 @@ func runAddSingle(cfg types.Config) {
 	}
 
 	if cfg.Arguments.Add.Single.Name == "" {
-		if cfg.Arguments.InTerminal {
+		if !cfg.Arguments.NonInteractive {
 			prompt := promptui.Prompt{
 				Label: "Name",
 				Validate: func(input string) error {
@@ -55,7 +55,7 @@ func runAddSingle(cfg types.Config) {
 	}
 
 	if cfg.Arguments.Add.Single.Namespace == "" {
-		if cfg.Arguments.InTerminal {
+		if !cfg.Arguments.NonInteractive {
 			prompt := promptui.Prompt{
 				Label: "Namespace",
 				Validate: func(input string) error {
@@ -83,7 +83,7 @@ func runAddSingle(cfg types.Config) {
 	}
 
 	if cfg.Arguments.Add.Single.File == "" {
-		if cfg.Arguments.InTerminal {
+		if !cfg.Arguments.NonInteractive {
 			prompt := promptui.Prompt{
 				Label: "File",
 				Validate: func(input string) error {
@@ -111,7 +111,7 @@ func runAddSingle(cfg types.Config) {
 	}
 
 	if !cfg.Arguments.Add.Single.UseCreate {
-		if cfg.Arguments.InTerminal {
+		if !cfg.Arguments.NonInteractive {
 			prompt := promptui.Select{
 				Label: "Use create instead of apply",
 				Items: []string{"true", "false"},
@@ -144,7 +144,7 @@ func runAddSingle(cfg types.Config) {
 
 	pth := path.Join(cfg.Arguments.WorkingDir, "singles", fmt.Sprintf("%s.yaml", single.Name))
 	if _, err := os.Stat(pth); err == nil && !cfg.Arguments.Add.Single.Overwrite && pth != cfg.Arguments.Add.Single.File {
-		if cfg.Arguments.InTerminal {
+		if !cfg.Arguments.NonInteractive {
 			prompt := promptui.Prompt{
 				Label:     "Single already exists, overwrite",
 				IsConfirm: true,

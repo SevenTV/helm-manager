@@ -13,7 +13,7 @@ func runRemoveRepo(cfg types.Config) {
 	}
 
 	if cfg.Arguments.Remove.Repo.Name == "" {
-		if cfg.Arguments.InTerminal {
+		if !cfg.Arguments.NonInteractive {
 			prompt := promptui.Select{
 				Label: "Name",
 				Items: cfg.Repos,

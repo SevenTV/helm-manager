@@ -15,7 +15,7 @@ func runRemoveEnv(cfg types.Config) {
 	}
 
 	if cfg.Arguments.Remove.Env.Name == "" {
-		if cfg.Arguments.InTerminal {
+		if !cfg.Arguments.NonInteractive {
 			prompt := promptui.Select{
 				Label: "Name",
 				Items: cfg.AllowedEnv,

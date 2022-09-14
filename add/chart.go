@@ -23,7 +23,7 @@ func runAddChart(cfg types.Config) {
 	charts := utils.FetchHelmCharts(cfg)
 
 	if cfg.Arguments.Add.Chart.Name == "" {
-		if cfg.Arguments.InTerminal {
+		if !cfg.Arguments.NonInteractive {
 			namePrompt := promptui.Prompt{
 				Label: "Name",
 				Validate: func(s string) error {
@@ -56,7 +56,7 @@ func runAddChart(cfg types.Config) {
 	}
 
 	if cfg.Arguments.Add.Chart.Chart == "" {
-		if cfg.Arguments.InTerminal {
+		if !cfg.Arguments.NonInteractive {
 			chartPrompt := promptui.Select{
 				Label:             "Chart",
 				Items:             charts,
@@ -107,7 +107,7 @@ func runAddChart(cfg types.Config) {
 	}
 
 	if cfg.Arguments.Add.Chart.Version == "" {
-		if cfg.Arguments.InTerminal {
+		if !cfg.Arguments.NonInteractive {
 			versionPrompt := promptui.Select{
 				Label: "Version",
 				Items: helmChart.Children,
@@ -155,7 +155,7 @@ func runAddChart(cfg types.Config) {
 	}
 
 	if cfg.Arguments.Add.Chart.Namespace == "" {
-		if cfg.Arguments.InTerminal {
+		if !cfg.Arguments.NonInteractive {
 			downloading := make(chan bool)
 			finished := make(chan struct{})
 			go func() {
@@ -274,7 +274,7 @@ func runAddChart(cfg types.Config) {
 
 	if !cfg.Arguments.Add.Chart.Overwrite {
 		if _, err := os.Stat(chart.File); err == nil {
-			if cfg.Arguments.InTerminal {
+			if !cfg.Arguments.NonInteractive {
 				prompt := promptui.Prompt{
 					Label:     "Chart file already exists, overwrite",
 					IsConfirm: true,
@@ -290,7 +290,7 @@ func runAddChart(cfg types.Config) {
 		}
 	}
 
-	if inputFile == "" && cfg.Arguments.InTerminal {
+	if inputFile == "" && !cfg.Arguments.NonInteractive {
 		prompt := promptui.Prompt{
 			Label: "Template File",
 			Validate: func(s string) error {

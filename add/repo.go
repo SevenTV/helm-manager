@@ -18,7 +18,7 @@ func runAddRepo(cfg types.Config) {
 	}
 
 	if cfg.Arguments.Add.Repo.Name == "" {
-		if cfg.Arguments.InTerminal {
+		if !cfg.Arguments.NonInteractive {
 			prompt := promptui.Prompt{
 				Label: "Name",
 				Validate: func(input string) error {
@@ -50,7 +50,7 @@ func runAddRepo(cfg types.Config) {
 	}
 
 	if cfg.Arguments.Add.Repo.URL == "" {
-		if cfg.Arguments.InTerminal {
+		if !cfg.Arguments.NonInteractive {
 			prompt := promptui.Prompt{
 				Label: "URL",
 				Validate: func(input string) error {

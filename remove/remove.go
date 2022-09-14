@@ -12,7 +12,7 @@ var RemoveColor = color.New(color.Bold, color.FgRed)
 
 func Run(cfg types.Config) {
 	if cfg.Arguments.Mode == cli.CommandModeRemove {
-		if cfg.Arguments.InTerminal {
+		if !cfg.Arguments.NonInteractive {
 			cmd := utils.SelectCommand("Select a subcommand", []cli.Command{
 				cli.RemoveChartCommand,
 				cli.RemoveEnvCommand,

@@ -18,7 +18,7 @@ func main() {
 
 	if cfg.Arguments.Mode == cli.CommandModeBase {
 		zap.S().Infof("* %s *\r", color.New(color.Bold, color.FgCyan).Sprint("Helm Manager"))
-		if cfg.Arguments.InTerminal {
+		if !cfg.Arguments.NonInteractive {
 			cmd := utils.SelectCommand("Select a command", []cli.Command{
 				cli.AddCommand,
 				cli.RemoveCommand,
@@ -41,10 +41,12 @@ func main() {
 		}
 
 		i.Run(cfg)
-	case cli.CommandModeUpgrade:
-		zap.S().Infof("* %s *", color.New(color.Bold, color.FgMagenta).Sprint("Helm Manager Upgrade"))
+	case cli.CommandModeUpgrade, cli.CommandModeUpgradeCharts, cli.CommandModeUpgradeSingles:
 		if !cfg.Exists {
+			zap.S().Infof("* %s *", upgrade.UpgradeColor.Sprint("Helm Manager Upgrade"))
 			utils.Fatal("manifest.yaml not found, please run '%s' first", color.YellowString("%s init", cli.BaseCommand.Name))
+		} else if cfg.Arguments.InTerminal {
+			zap.S().Infof("* %s *\r", upgrade.UpgradeColor.Sprint("Helm Manager Upgrade"))
 		}
 
 		upgrade.Run(cfg)

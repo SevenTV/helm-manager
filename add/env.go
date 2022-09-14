@@ -18,7 +18,7 @@ func runAddEnv(cfg types.Config) {
 	}
 
 	if cfg.Arguments.Add.Env.Name == "" {
-		if cfg.Arguments.InTerminal {
+		if !cfg.Arguments.NonInteractive {
 			prompt := promptui.Prompt{
 				Label: "Name",
 				Validate: func(input string) error {

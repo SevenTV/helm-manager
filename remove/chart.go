@@ -25,7 +25,7 @@ func runRemoveChart(cfg types.Config) {
 	}
 
 	if cfg.Arguments.Remove.Chart.Name == "" {
-		if cfg.Arguments.InTerminal {
+		if !cfg.Arguments.NonInteractive {
 			prompt := promptui.Select{
 				Label: "Select chart to remove",
 				Items: cfg.Charts,
@@ -54,7 +54,7 @@ func runRemoveChart(cfg types.Config) {
 		}
 	}
 
-	if !cfg.Arguments.Remove.Chart.Wait && cfg.Arguments.InTerminal {
+	if !cfg.Arguments.Remove.Chart.Wait && !cfg.Arguments.NonInteractive {
 		prompt := promptui.Prompt{
 			Label:     "Do you want to wait for the chart to be removed",
 			IsConfirm: true,
@@ -68,7 +68,7 @@ func runRemoveChart(cfg types.Config) {
 		cfg.Arguments.Remove.Chart.Wait = err == nil
 	}
 
-	if !cfg.Arguments.Remove.Chart.DryRun && cfg.Arguments.InTerminal {
+	if !cfg.Arguments.Remove.Chart.DryRun && !cfg.Arguments.NonInteractive {
 		prompt := promptui.Prompt{
 			Label:     "Do you want to do a dry run",
 			IsConfirm: true,
@@ -107,7 +107,7 @@ func runRemoveChart(cfg types.Config) {
 	}
 
 	if !cfg.Arguments.Remove.Chart.Confirm && !cfg.Arguments.Remove.Chart.DryRun {
-		if cfg.Arguments.InTerminal {
+		if !cfg.Arguments.NonInteractive {
 			prompt := promptui.Prompt{
 				Label:     "Are you sure you want to delete this chart",
 				IsConfirm: true,
@@ -191,7 +191,7 @@ func runRemoveChart(cfg types.Config) {
 	if !cfg.Arguments.Remove.Chart.DryRun {
 		utils.WriteConfig(cfg)
 
-		if !cfg.Arguments.Remove.Chart.Delete && cfg.Arguments.InTerminal {
+		if !cfg.Arguments.Remove.Chart.Delete && !cfg.Arguments.NonInteractive {
 			prompt := promptui.Prompt{
 				Label:     "Do you want to delete the chart file",
 				IsConfirm: true,
