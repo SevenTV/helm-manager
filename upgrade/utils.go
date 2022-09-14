@@ -63,14 +63,14 @@ func HandleChart(cfg types.Config, chart types.Chart, envMap map[string]string) 
 	if err != nil {
 		waiting <- false
 		<-finished
-		zap.S().Error("Unable to parse values file for %s", chart.Name)
+		utils.Error("Unable to parse values file for %s", chart.Name)
 		return types.ChartUpgrade{}, false
 	}
 
 	if !values.IsZero() && values.Kind != yaml.DocumentNode {
 		waiting <- false
 		<-finished
-		zap.S().Errorf("Invalid values file for %s", chart.Name)
+		utils.Error("Invalid values file for %s", chart.Name)
 		return types.ChartUpgrade{}, false
 	}
 
@@ -78,7 +78,7 @@ func HandleChart(cfg types.Config, chart types.Chart, envMap map[string]string) 
 	if defaultChartValues.IsZero() {
 		waiting <- false
 		<-finished
-		zap.S().Errorf("No default values found for %s", chart.Name)
+		utils.Error("No default values found for %s", chart.Name)
 		return types.ChartUpgrade{}, false
 	}
 
@@ -110,12 +110,30 @@ func HandleChart(cfg types.Config, chart types.Chart, envMap map[string]string) 
 	if len(values.Content) != 3 {
 		waiting <- false
 		<-finished
-		zap.S().Errorf("Invalid values file for %s", chart.Name)
+		utils.Error("Invalid values file for %s", chart.Name)
 		return types.ChartUpgrade{}, false
 	}
 
 	oldLock := types.ChartLock{}
 	values.Content[LOCK_IDX].Decode(&oldLock)
+
+	if oldLock.Version != "" && oldLock.Version != chart.Version {
+		// the file is outdated we need to first prune off the old values
+		// and then add the new ones
+		c := chart
+		c.Version = oldLock.Version
+		oldValues := utils.GetDefaultChartValues(c)
+		if err != nil {
+			waiting <- false
+			<-finished
+			utils.Error("Unable to read values file for %s @ ", chart.Name, oldLock.Version)
+		}
+
+		merged := utils.PruneYaml(oldValues, utils.MergeYaml(utils.RemoveYamlComments(*values.Content[DEFAULTS_IDX]), *values.Content[VALUES_IDX]))
+
+		values.Content[VALUES_IDX] = &merged
+		values.Content[DEFAULTS_IDX] = &defaultChartValues
+	}
 
 	{
 		merged := utils.PruneYaml(defaultChartValues, utils.MergeYaml(utils.RemoveYamlComments(*values.Content[DEFAULTS_IDX]), *values.Content[VALUES_IDX]))
@@ -133,7 +151,7 @@ func HandleChart(cfg types.Config, chart types.Chart, envMap map[string]string) 
 		if err != nil {
 			waiting <- false
 			<-finished
-			zap.S().Errorf("Failed to marshal values for %s", chart.Name)
+			utils.Error("Failed to marshal values for %s", chart.Name)
 			return types.ChartUpgrade{}, false
 		}
 
@@ -154,7 +172,7 @@ func HandleChart(cfg types.Config, chart types.Chart, envMap map[string]string) 
 		if err != nil {
 			waiting <- false
 			<-finished
-			zap.S().Errorf("Failed to marshal lock for %s", chart.Name)
+			utils.Error("Failed to marshal lock for %s", chart.Name)
 			return types.ChartUpgrade{}, false
 		}
 
@@ -163,7 +181,7 @@ func HandleChart(cfg types.Config, chart types.Chart, envMap map[string]string) 
 		if err != nil {
 			waiting <- false
 			<-finished
-			zap.S().Errorf("Failed to unmarshal lock for %s", chart.Name)
+			utils.Error("Failed to unmarshal lock for %s", chart.Name)
 			return types.ChartUpgrade{}, false
 		}
 
@@ -177,7 +195,7 @@ func HandleChart(cfg types.Config, chart types.Chart, envMap map[string]string) 
 	if err != nil {
 		waiting <- false
 		<-finished
-		zap.S().Errorf("Failed to marshal values for %s", chart.Name)
+		utils.Error("Failed to marshal values for %s", chart.Name)
 		return types.ChartUpgrade{}, false
 	}
 
@@ -186,7 +204,7 @@ func HandleChart(cfg types.Config, chart types.Chart, envMap map[string]string) 
 	if err != nil {
 		waiting <- false
 		<-finished
-		zap.S().Errorf("Failed to create folder for %s", chart.Name)
+		utils.Error("Failed to create folder for %s", chart.Name)
 		return types.ChartUpgrade{}, false
 	}
 
@@ -194,7 +212,7 @@ func HandleChart(cfg types.Config, chart types.Chart, envMap map[string]string) 
 	if err != nil {
 		waiting <- false
 		<-finished
-		zap.S().Errorf("Failed to write values for %s to %s", chart.Name, chart.File)
+		utils.Error("Failed to write values for %s to %s", chart.Name, chart.File)
 		return types.ChartUpgrade{}, false
 	}
 

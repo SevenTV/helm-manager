@@ -8,6 +8,7 @@ import (
 	"github.com/seventv/helm-manager/manager/cli"
 	"github.com/seventv/helm-manager/manager/utils"
 	"github.com/seventv/helm-manager/remove"
+	"github.com/seventv/helm-manager/update"
 	"github.com/seventv/helm-manager/upgrade"
 	"go.uber.org/zap"
 )
@@ -23,6 +24,7 @@ func main() {
 				cli.RemoveCommand,
 				cli.UpgradeCommand,
 				cli.InitCommand,
+				cli.UpdateCommand,
 			})
 
 			cfg.Arguments.Mode = cmd.Mode
@@ -64,5 +66,12 @@ func main() {
 		}
 
 		remove.Run(cfg)
+	case cli.CommandModeUpdate:
+		zap.S().Infof("* %s *", update.UpdateColor.Sprint("Helm Manager Update"))
+		if !cfg.Exists {
+			utils.Fatal("manifest.yaml not found, please run '%s' first", color.YellowString("%s init", cli.BaseCommand.Name))
+		}
+
+		update.Run(cfg)
 	}
 }

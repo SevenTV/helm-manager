@@ -37,6 +37,8 @@ const (
 	CommandModeRemoveSingle
 	CommandModeRemoveRepo
 	CommandModeRemoveEnv
+
+	CommandModeUpdate
 )
 
 var BaseCommand = Command{
@@ -55,6 +57,7 @@ type Arguments struct {
 	Upgrade Upgrade
 	Add     Add
 	Remove  Remove
+	Update  Update
 }
 
 func BaseCli(parser argparse.Parser, args Arguments) Trigger {
@@ -100,6 +103,7 @@ func ReadArguments() Arguments {
 		AddCli(Parser, args),
 		RemoveCli(Parser, args),
 		InitCli(Parser, args),
+		UpdateCli(Parser, args),
 	)
 
 	if err := Parser.Parse(os.Args); err != nil {
