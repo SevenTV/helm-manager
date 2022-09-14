@@ -140,7 +140,7 @@ func HandleChart(cfg types.Config, chart types.Chart, envMap map[string]string) 
 		return types.ChartUpgrade{}, false
 	}
 
-	defaultChartValues := utils.GetDefaultChartValues(chart)
+	defaultChartValues := utils.GetHelmChartDefaultValues(chart)
 	if defaultChartValues.IsZero() {
 		waiting <- false
 		<-finished
@@ -188,7 +188,7 @@ func HandleChart(cfg types.Config, chart types.Chart, envMap map[string]string) 
 		// and then add the new ones
 		c := chart
 		c.Version = oldLock.Version
-		oldValues := utils.GetDefaultChartValues(c)
+		oldValues := utils.GetHelmChartDefaultValues(c)
 		if err != nil {
 			waiting <- false
 			<-finished

@@ -60,7 +60,7 @@ func runAddSingle(cfg types.Config) {
 				Label: "Namespace",
 				Validate: func(input string) error {
 					if input == "" {
-						return errors.New("namespace cannot be empty")
+						return nil
 					}
 
 					if strings.Contains(input, " ") {
@@ -77,8 +77,6 @@ func runAddSingle(cfg types.Config) {
 			}
 
 			cfg.Arguments.Add.Single.Namespace = result
-		} else {
-			utils.Fatal("Non-interactive mode requires a namespace")
 		}
 	}
 
@@ -112,19 +110,17 @@ func runAddSingle(cfg types.Config) {
 
 	if !cfg.Arguments.Add.Single.UseCreate {
 		if !cfg.Arguments.NonInteractive {
-			prompt := promptui.Select{
-				Label: "Use create instead of apply",
-				Items: []string{"true", "false"},
+			prompt := promptui.Prompt{
+				Label:     "Use create instead of apply",
+				IsConfirm: true,
 			}
 
-			_, result, err := prompt.Run()
-			if err != nil {
+			_, err := prompt.Run()
+			if err != nil && err != promptui.ErrAbort {
 				zap.S().Fatal(err)
 			}
 
-			cfg.Arguments.Add.Single.UseCreate = result == "true"
-
-			zap.S().Infof("Use create: %s", color.GreenString(result))
+			cfg.Arguments.Add.Single.UseCreate = err == nil
 		} else {
 			cfg.Arguments.Add.Single.UseCreate = false
 		}
@@ -175,5 +171,5 @@ func runAddSingle(cfg types.Config) {
 	utils.WriteConfig(cfg)
 
 	zap.S().Infof("%s Added single to manifest", color.GreenString("✓"))
-	zap.S().Infof("To deploy the single, run: %s", color.YellowString("%s upgrade", cli.BaseCommand.Name))
+	zap.S().Infof("To deploy the single, run: %s", color.YellowString("%s upgrade singles --only %s", cli.BaseCommand.Name, single.Name))
 }

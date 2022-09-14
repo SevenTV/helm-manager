@@ -55,40 +55,82 @@ func runAddChart(cfg types.Config) {
 		}
 	}
 
+	isLocal := false
 	if cfg.Arguments.Add.Chart.Chart == "" {
 		if !cfg.Arguments.NonInteractive {
-			chartPrompt := promptui.Select{
-				Label:             "Chart",
-				Items:             charts,
-				StartInSearchMode: true,
-				Templates: &promptui.SelectTemplates{
-					Label:    "{{ . }}?",
-					Active:   "➔ {{ .Name | cyan }} ({{ .Version | red }})",
-					Inactive: "  {{ .Name | cyan }} ({{ .Version | red }})",
-					Selected: `{{ "Chart:" | faint }} {{ .Name }}`,
-					Details: `
---------- Chart ----------
-{{ "Name:" | faint }}	{{ .Name }}
-{{ "Version:" | faint }}	{{ .Version }}
-{{ "Description:" | faint }}	{{ .Desctipton }}
-				`,
-				},
-				Searcher: func(input string, index int) bool {
-					chart := charts[index]
-					name := strings.Replace(strings.ToLower(chart.Name), " ", "", -1)
-					input = strings.Replace(strings.ToLower(input), " ", "", -1)
-					description := strings.Replace(strings.ToLower(chart.Desctipton), " ", "", -1)
-
-					return strings.Contains(name, input) || strings.Contains(description, input)
-				},
+			isLocalPrompt := promptui.Prompt{
+				Label:     "Is this a local chart",
+				IsConfirm: true,
 			}
 
-			idx, _, err := chartPrompt.Run()
-			if err != nil {
+			_, err := isLocalPrompt.Run()
+			if err != nil && err != promptui.ErrAbort {
 				zap.S().Fatal(err)
 			}
 
-			cfg.Arguments.Add.Chart.Chart = charts[idx].Name
+			isLocal = err == nil
+
+			if isLocal {
+				chartPrompt := promptui.Prompt{
+					Label: "Path to chart",
+					Validate: func(s string) error {
+						if s == "" {
+							return errors.New("a path is required")
+						}
+
+						if stat, err := os.Stat(s); err != nil {
+							return errors.New("path does not exist")
+						} else if !stat.IsDir() {
+							return errors.New("path is not a directory")
+						} else if stat, err = os.Stat(path.Join(s, "Chart.yaml")); err != nil || stat.IsDir() {
+							return errors.New("path does not contain a Chart.yaml file")
+						}
+
+						return nil
+					},
+				}
+
+				result, err := chartPrompt.Run()
+				if err != nil {
+					zap.S().Fatal(err)
+				}
+
+				cfg.Arguments.Add.Chart.Chart = result
+			} else {
+				chartPrompt := promptui.Select{
+					Label:             "Chart",
+					Items:             charts,
+					StartInSearchMode: true,
+					Templates: &promptui.SelectTemplates{
+						Label:    "{{ . }}?",
+						Active:   "➔ {{ .Name | cyan }} ({{ .Version | red }})",
+						Inactive: "  {{ .Name | cyan }} ({{ .Version | red }})",
+						Selected: `{{ "Chart:" | faint }} {{ .Name }}`,
+						Details: `
+	--------- Chart ----------
+	{{ "Name:" | faint }}	{{ .Name }}
+	{{ "Version:" | faint }}	{{ .Version }}
+	{{ "Description:" | faint }}	{{ .Desctipton }}
+					`,
+					},
+					Searcher: func(input string, index int) bool {
+						chart := charts[index]
+						name := strings.Replace(strings.ToLower(chart.Name), " ", "", -1)
+						input = strings.Replace(strings.ToLower(input), " ", "", -1)
+						description := strings.Replace(strings.ToLower(chart.Desctipton), " ", "", -1)
+
+						return strings.Contains(name, input) || strings.Contains(description, input)
+					},
+				}
+
+				idx, _, err := chartPrompt.Run()
+				if err != nil {
+					zap.S().Fatal(err)
+				}
+
+				cfg.Arguments.Add.Chart.Chart = charts[idx].Name
+			}
+
 		} else {
 			zap.S().Fatal(cli.Parser.Usage(color.RedString("Non-interactive mode requires a chart argument")))
 		}
@@ -351,5 +393,5 @@ func runAddChart(cfg types.Config) {
 	utils.WriteConfig(cfg)
 
 	zap.S().Infof("%s Added chart to manifest", color.GreenString("✓"))
-	zap.S().Infof("To deploy the chart, run: %s", color.YellowString("%s upgrade", cli.BaseCommand.Name))
+	zap.S().Infof("To deploy the chart, run: %s", color.YellowString("%s upgrade charts --only %s", cli.BaseCommand.Name, chart.Name))
 }

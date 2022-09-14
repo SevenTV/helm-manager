@@ -86,10 +86,14 @@ func HandleSingle(cfg types.Config, single types.Single, envMap map[string]strin
 		}
 	}()
 
-	args := []string{"apply", "-n", single.Namespace, "-f", "-"}
+	args := []string{"apply"}
+	if single.Namespace != "" {
+		args = append(args, "--namespace", single.Namespace)
+	}
 	if cfg.Arguments.Upgrade.DryRun {
 		args = append(args, "--dry-run")
 	}
+	args = append(args, "-f", "-")
 
 	data, err := os.ReadFile(path.Join(cfg.Arguments.WorkingDir, "singles", fmt.Sprintf("%s.yaml", single.Name)))
 	if err != nil {

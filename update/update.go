@@ -141,7 +141,7 @@ func Run(cfg types.Config) {
 		}
 
 		zap.S().Infof("%s Updated chart in manifest", color.GreenString("✓"))
-		zap.S().Infof("To deploy the chart, run: %s", color.YellowString("%s upgrade", cli.BaseCommand.Name))
+		zap.S().Infof("To deploy the chart, run: %s", color.YellowString("%s upgrade charts --only %s", cli.BaseCommand.Name, chart.Name))
 
 		cfg.Charts[idx] = chart
 
@@ -150,7 +150,15 @@ func Run(cfg types.Config) {
 		utils.Info("Listing all updates")
 		i := 0
 		for _, chart := range cfg.Charts {
-			helmChart := helmChartMp[chart.Chart]
+			helmChart, ok := helmChartMp[chart.Chart]
+			if !ok {
+				if chart.Version != "" {
+					utils.Warn("Chart %s not found in helm repo", chart.Chart)
+				}
+
+				continue
+			}
+
 			if helmChart.Version != chart.Version {
 				i++
 				var oldChart utils.HelmChart

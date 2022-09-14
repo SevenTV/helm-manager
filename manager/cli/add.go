@@ -53,6 +53,7 @@ type AddChart struct {
 	Namespace string
 	File      string
 	Overwrite bool
+	Local     bool
 }
 
 var AddChartCommand = Command{
@@ -114,6 +115,11 @@ func AddChartCli(addCmd argparse.Command, args Arguments) Trigger {
 		Help:     "Overwrite the chart file if it already exists",
 	})
 
+	chartLocalFlag := addChartCmd.Flag("", "local", &argparse.Options[bool]{
+		Required: false,
+		Help:     "Install the chart from a local directory",
+	})
+
 	return func(args *Arguments) error {
 		if !addChartCmd.Happened() {
 			return nil
@@ -121,6 +127,8 @@ func AddChartCli(addCmd argparse.Command, args Arguments) Trigger {
 
 		args.Mode = CommandModeAddChart
 		args.Add.Chart.Name = *chartNameFlag
+		args.Add.Chart.Local = *chartLocalFlag
+
 		if args.Add.Chart.Name == "" {
 			args.Add.Chart.Name = *chartNamePos
 		} else if *chartNamePos != "" {
@@ -149,7 +157,9 @@ func AddChartCli(addCmd argparse.Command, args Arguments) Trigger {
 			return errors.New("version cannot be specified twice")
 		}
 
-		if args.Add.Chart.Version == "" && args.NonInteractive {
+		if args.Add.Chart.Local && args.Add.Chart.Version != "" {
+			return errors.New("version cannot be specified for local charts")
+		} else if args.Add.Chart.Version == "" && args.NonInteractive && !args.Add.Chart.Local {
 			return errors.New("no chart version provided")
 		}
 

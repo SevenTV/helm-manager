@@ -3,8 +3,10 @@ package utils
 import (
 	"bytes"
 	"io"
+	"os"
 
 	"github.com/jinzhu/copier"
+	"github.com/seventv/helm-manager/manager/types"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )
@@ -74,13 +76,6 @@ func MarshalYaml(node yaml.Node) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
-}
-
-func OrStr(a, b string) string {
-	if a != "" {
-		return a
-	}
-	return b
 }
 
 func PruneYaml(defaultValues yaml.Node, chartValues yaml.Node) yaml.Node {
@@ -242,4 +237,47 @@ func ConvertDocument(node yaml.Node) yaml.Node {
 	}
 
 	return copiedNode
+}
+
+func RemoveYamlComments(node yaml.Node) yaml.Node {
+	if NodeIsZero(node) {
+		return yaml.Node{}
+	}
+
+	var newNode yaml.Node
+	copier.CopyWithOption(&newNode, &node, copier.Option{DeepCopy: true})
+
+	var removeComments func(node *yaml.Node)
+	removeComments = func(node *yaml.Node) {
+		node.HeadComment = ""
+		node.LineComment = ""
+		node.FootComment = ""
+
+		for _, child := range node.Content {
+			removeComments(child)
+		}
+	}
+
+	removeComments(&newNode)
+
+	return newNode
+}
+
+func ToDocument(node yaml.Node) yaml.Node {
+	var newNode yaml.Node
+	copier.CopyWithOption(&newNode, &node, copier.Option{DeepCopy: true})
+
+	newNode.Kind = yaml.DocumentNode
+	newNode.Content = []*yaml.Node{&node}
+
+	return newNode
+}
+
+func ReadChartValues(chart types.Chart) (yaml.Node, error) {
+	values, err := os.ReadFile(chart.File)
+	if err != nil {
+		return yaml.Node{}, ErrorNotFound
+	}
+
+	return ParseYaml(values)
 }
