@@ -107,10 +107,10 @@ func runAddChart(cfg types.Config) {
 						Inactive: "  {{ .Name | cyan }} ({{ .Version | red }})",
 						Selected: `{{ "Chart:" | faint }} {{ .Name }}`,
 						Details: `
-	--------- Chart ----------
-	{{ "Name:" | faint }}	{{ .Name }}
-	{{ "Version:" | faint }}	{{ .Version }}
-	{{ "Description:" | faint }}	{{ .Desctipton }}
+--------- Chart ----------
+{{ "Name:" | faint }}	{{ .Name }}
+{{ "Version:" | faint }}	{{ .Version }}
+{{ "Description:" | faint }}	{{ .Desctipton }}
 					`,
 					},
 					Searcher: func(input string, index int) bool {
@@ -159,10 +159,10 @@ func runAddChart(cfg types.Config) {
 					Inactive: "  {{ .Name | cyan }} ({{ .Version | red }})",
 					Selected: `{{ "Version:" | faint }} {{ .Version }}`,
 					Details: `
-	--------- Chart ----------
-	{{ "Name:" | faint }}	{{ .Name }}
-	{{ "Version:" | faint }}	{{ .Version }}
-	{{ "Description:" | faint }}	{{ .Desctipton }}
+--------- Chart ----------
+{{ "Name:" | faint }}	{{ .Name }}
+{{ "Version:" | faint }}	{{ .Version }}
+{{ "Description:" | faint }}	{{ .Desctipton }}
 					`,
 				},
 				Searcher: func(input string, index int) bool {
