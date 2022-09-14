@@ -1,4 +1,4 @@
-package manager
+package utils
 
 import (
 	"crypto/sha256"
@@ -7,8 +7,12 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
+	"github.com/fatih/color"
 	"github.com/jinzhu/copier"
+	"github.com/manifoldco/promptui"
+	"github.com/seventv/helm-manager/manager/cli"
 	"github.com/seventv/helm-manager/manager/types"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
@@ -114,22 +118,58 @@ func GetNonDefaultChartValues(chart types.Chart, values yaml.Node) yaml.Node {
 }
 
 func UpdateRepos(cfg types.Config) {
-	zap.S().Debug("Updating repos")
-
 	repoMap := CreateRepoMap(cfg)
 	if len(repoMap) == 0 {
-		zap.S().Warn("No repos to update")
 		return
 	}
 
+	updating := make(chan bool)
+	finished := make(chan struct{})
+	go func() {
+		defer close(finished)
+		defer close(updating)
+		if cfg.Arguments.InTerminal {
+			t := time.NewTicker(200 * time.Millisecond)
+			defer t.Stop()
+			i := 0
+			stages := []string{"\\", "|", "/", "-"}
+			for {
+				select {
+				case <-t.C:
+					zap.S().Infof("%s [%s]\r", color.YellowString("Updating Helm Repos"), color.CyanString("%s", stages[i%len(stages)]))
+					i++
+				case success := <-updating:
+					if success {
+						zap.S().Infof("%s Updated Helm Repos", color.GreenString("✓"))
+					} else {
+						zap.S().Infof("%s Failed to update Helm Repos", color.RedString("✗"))
+					}
+					return
+				}
+			}
+		} else {
+			Info("Updating Helm Repos...")
+			if <-updating {
+				Info("Updated Helm Repos")
+			} else {
+				Error("Failed to update Helm Repos")
+			}
+		}
+	}()
+
 	data, err := ExecuteCommand("helm", "repo", "list", "-o", "json")
 	if err != nil {
-		zap.S().Fatal("Failed to list helm repos, is helm installed?")
+		updating <- false
+		<-finished
+		Fatal("Failed to list helm repos, is helm installed?\n", data)
 	}
 
 	repos, err := ParseHelmRepos(data)
 	if err != nil {
-		zap.S().Fatal("Failed to parse helm repo list")
+		updating <- false
+		<-finished
+
+		Fatal("Failed to parse helm repo list")
 	}
 
 	installedReposMap := map[string]types.Repo{}
@@ -140,27 +180,31 @@ func UpdateRepos(cfg types.Config) {
 	for _, repo := range repoMap {
 		installedRepo, ok := installedReposMap[repo.Name]
 		if ok && installedRepo.URL != repo.URL {
-			_, err = ExecuteCommand("helm", "repo", "remove", repo.Name)
+			out, err := ExecuteCommand("helm", "repo", "remove", repo.Name)
 			if err != nil {
-				zap.S().Fatalf("Failed to remove repo %s", repo.Name)
+				updating <- false
+				<-finished
+				Fatal("Failed to remove repo %s\n%s", repo.Name, out)
 			}
 			ok = false
 		}
 
 		if !ok {
-			_, err = ExecuteCommand("helm", "repo", "add", repo.Name, repo.URL)
+			out, err := ExecuteCommand("helm", "repo", "add", repo.Name, repo.URL)
 			if err != nil {
-				zap.S().Fatal("Failed to add helm repo %s %s", repo.Name, repo.URL)
+				updating <- false
+				<-finished
+				Fatal("Failed to add helm repo %s\n%s", repo.Name, out)
 			}
 		}
 	}
 
 	_, err = ExecuteCommand("helm", "repo", "update")
+	updating <- err == nil
+	<-finished
 	if err != nil {
-		zap.S().Fatal("Failed to update helm repos")
+		Fatal("Failed to update helm repos")
 	}
-
-	zap.S().Debug("Updated repos")
 }
 
 func ToDocument(node yaml.Node) yaml.Node {
@@ -171,4 +215,46 @@ func ToDocument(node yaml.Node) yaml.Node {
 	newNode.Content = []*yaml.Node{&node}
 
 	return newNode
+}
+
+func SelectCommand(prompt string, options []cli.Command) cli.Command {
+	subcommandSelect := promptui.Select{
+		Label:        prompt,
+		HideSelected: true,
+		HideHelp:     true,
+		Templates: &promptui.SelectTemplates{
+			Label:    "{{ . }}",
+			Active:   "➔ {{ .Name | cyan }} {{ .Help | faint }}",
+			Inactive: "  {{ .Name | cyan }} {{ .Help | faint }}",
+			Selected: "{{ .Name }}",
+		},
+		Items: options,
+	}
+
+	idx, _, err := subcommandSelect.Run()
+	if err != nil {
+		zap.S().Fatal(err)
+	}
+
+	return options[idx]
+}
+
+func Fatal(msg string, args ...any) {
+	zap.S().Fatalf("%s %s", color.New(color.Bold, color.FgBlack).Sprint("=>"), color.RedString(msg, args...))
+}
+
+func Error(msg string, args ...any) {
+	zap.S().Errorf("%s %s", color.New(color.Bold, color.FgBlack).Sprint("=>"), color.RedString(msg, args...))
+}
+
+func Warn(msg string, args ...any) {
+	zap.S().Warnf("%s %s", color.New(color.Bold, color.FgBlack).Sprint("->"), color.YellowString(msg, args...))
+}
+
+func Info(msg string, args ...any) {
+	zap.S().Infof("%s %s", color.New(color.Bold, color.FgBlack).Sprint(">"), color.WhiteString(msg, args...))
+}
+
+func Debug(msg string, args ...any) {
+	zap.S().Debugf("%s %s", color.New(color.Bold, color.FgBlack).Sprint(":>"), color.MagentaString(msg, args...))
 }

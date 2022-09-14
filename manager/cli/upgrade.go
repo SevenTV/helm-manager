@@ -1,10 +1,10 @@
 package cli
 
 import (
+	"errors"
 	"path"
 
 	"github.com/seventv/helm-manager/argparse"
-	"go.uber.org/zap"
 )
 
 type Upgrade struct {
@@ -18,8 +18,14 @@ type Upgrade struct {
 	ChartWhitelist    map[string]bool
 }
 
-func UpgradeCli(parser argparse.Parser) Trigger {
-	cmd := parser.NewCommand("upgrade", "The upgrade subcommand is used to update the values files or the cluster")
+var UpgradeCommand = Command{
+	Name: "upgrade",
+	Help: "Upgrade cluster and charts",
+	Mode: CommandModeUpgrade,
+}
+
+func UpgradeCli(parser argparse.Parser, args Arguments) Trigger {
+	cmd := parser.NewCommand(UpgradeCommand.Name, UpgradeCommand.Help)
 
 	upgradeDryRunFlag := cmd.Flag("", "dry-run", &argparse.Options[bool]{
 		Required: false,
@@ -62,9 +68,9 @@ func UpgradeCli(parser argparse.Parser) Trigger {
 		Help:     "Disable stopping on the first error",
 	})
 
-	return func(args *Arguments) {
+	return func(args *Arguments) error {
 		if !cmd.Happened() {
-			return
+			return nil
 		}
 
 		args.Mode = CommandModeUpgrade
@@ -83,7 +89,7 @@ func UpgradeCli(parser argparse.Parser) Trigger {
 		}
 
 		if len(*upgradeOnlyChartsFlag) > 0 && len(args.Upgrade.IgnoreChartsMap) > 0 {
-			zap.S().Fatalf("Invalid argument --only cannot be used with --ignore")
+			return errors.New("Invalid argument --only cannot be used with --ignore")
 		}
 
 		for _, name := range *upgradeOnlyChartsFlag {
@@ -93,5 +99,7 @@ func UpgradeCli(parser argparse.Parser) Trigger {
 		if !path.IsAbs(args.Upgrade.TemplateOutputDir) {
 			args.Upgrade.TemplateOutputDir = path.Join(args.WorkingDir, args.Upgrade.TemplateOutputDir)
 		}
+
+		return nil
 	}
 }

@@ -10,14 +10,13 @@ type Config struct {
 	Charts     []Chart  `yaml:"charts"`
 	Singles    []Single `yaml:"singles"`
 
-	Exists    bool          `yaml:"-"`
-	Arguments cli.Arguments `yaml:"-"`
+	Exists    bool           `yaml:"-"`
+	Arguments *cli.Arguments `yaml:"-"`
 }
 
 type Single struct {
 	Name      string `yaml:"name"`
 	Namespace string `yaml:"namespace"`
-	File      string `yaml:"file"`
 	UseCreate bool   `yaml:"use_create"`
 }
 

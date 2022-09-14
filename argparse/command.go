@@ -508,7 +508,9 @@ func (c *Cmd) parse(args []string) error {
 	}
 
 	if c.positionalIdx < len(c.flagsArgs) {
-		return fmt.Errorf("missing positional argument [%s]", strings.ToUpper(c.flagsArgs[c.positionalIdx].name))
+		if c.flagsArgs[c.positionalIdx].options.Required {
+			return fmt.Errorf("missing positional argument [%s]", strings.ToUpper(c.flagsArgs[c.positionalIdx].name))
+		}
 	}
 
 	for _, f := range c.treeFlags() {

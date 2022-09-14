@@ -2,14 +2,22 @@ package cli
 
 import "github.com/seventv/helm-manager/argparse"
 
-func InitCli(parser argparse.Command) Trigger {
-	initCmd := parser.NewCommand("init", "Initialize a new manifest")
+var InitCommand = Command{
+	Name: "init",
+	Help: "Initialize a new manifest file",
+	Mode: CommandModeInit,
+}
 
-	return func(args *Arguments) {
+func InitCli(parser argparse.Command, args Arguments) Trigger {
+	initCmd := parser.NewCommand(InitCommand.Name, InitCommand.Help)
+
+	return func(args *Arguments) error {
 		if !initCmd.Happened() {
-			return
+			return nil
 		}
 
 		args.Mode = CommandModeInit
+
+		return nil
 	}
 }
