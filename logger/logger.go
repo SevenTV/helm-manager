@@ -41,6 +41,9 @@ func (w *writer) Write(msg []byte) (int, error) {
 		return w.out.Write(msg)
 	}
 
+	previousLine.Data = nil
+	previousLine.WasRewrite = false
+
 	return w.out.Bypass().Write(msg)
 }
 
