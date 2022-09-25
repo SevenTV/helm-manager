@@ -87,14 +87,6 @@ var deployReleaseCmd = &cobra.Command{
 	Short: "Deploy a release",
 	Long:  "Deploy a release",
 	Args: ui.PositionalArgs([]ui.RequiredArg{
-		ui.Arg[bool]{
-			Name: "All",
-			Ptr:  &Args.DeployCmd.All,
-			Disabled: types.FutureFromFunc(func() bool {
-				return Args.Name != ""
-			}),
-			UI: ui.PromptUiConfirmFunc("Do you want to deploy all releases", false),
-		},
 		ui.Arg[string]{
 			Name:       "Name",
 			Ptr:        &Args.Name,
@@ -211,14 +203,6 @@ var deploySingleCmd = &cobra.Command{
 	Short: "Deploy a single",
 	Long:  "Deploy a single",
 	Args: ui.PositionalArgs([]ui.RequiredArg{
-		ui.Arg[bool]{
-			Name: "All",
-			Ptr:  &Args.DeployCmd.All,
-			Disabled: types.FutureFromFunc(func() bool {
-				return Args.Name != ""
-			}),
-			UI: ui.PromptUiConfirmFunc("Do you want to deploy all singles", false),
-		},
 		ui.Arg[string]{
 			Name:       "Name",
 			Ptr:        &Args.Name,

@@ -144,9 +144,11 @@ var EnvMapFuture = types.FutureFromFunc(func() map[string]string {
 	envMap := map[string]string{}
 	allowedEnvMp := map[string]bool{}
 	for _, env := range Manifest.AllowedEnv {
-		allowedEnvMp[env.String()] = true
 		if value, ok := os.LookupEnv(env.String()); ok {
+			allowedEnvMp[env.String()] = false
 			envMap[strings.ToUpper(env.String())] = value
+		} else {
+			allowedEnvMp[env.String()] = true
 		}
 	}
 
@@ -158,11 +160,22 @@ var EnvMapFuture = types.FutureFromFunc(func() map[string]string {
 	for _, line := range strings.Split(string(envData), "\n") {
 		if line != "" {
 			parts := strings.SplitN(line, "=", 2)
-			if !allowedEnvMp[strings.ToUpper(parts[0])] {
-				logger.Warnf("Env variable %s is not allowed but specified in env file", strings.ToUpper(parts[0]))
+			if val, ok := allowedEnvMp[strings.ToUpper(parts[0])]; !ok {
+				logger.Warnf("Env variable %s is not allowed but specified in env file.", strings.ToUpper(parts[0]))
 			} else {
+				if !val {
+					logger.Warnf("Env variable %s is specified multiple times.", strings.ToUpper(parts[0]))
+				}
+
+				allowedEnvMp[strings.ToUpper(parts[0])] = false
 				envMap[strings.ToUpper(parts[0])] = parts[1]
 			}
+		}
+	}
+
+	for env, unused := range allowedEnvMp {
+		if unused {
+			logger.Fatalf("Env variable %s is not specified.", strings.ToUpper(env))
 		}
 	}
 

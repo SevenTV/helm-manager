@@ -30,11 +30,6 @@ var updateCmd = &cobra.Command{
 	Short: "Update an existing release, or list available versions",
 	Long:  "Update an existing release, or list available versions",
 	Args: ui.PositionalArgs([]ui.RequiredArg{
-		ui.Arg[bool]{
-			Name: "list",
-			Ptr:  &Args.UpdateCmd.List,
-			UI:   ui.PromptUiConfirmFunc("Do you want to list all updates", true),
-		},
 		ui.Arg[string]{
 			Name:       "name",
 			Ptr:        &Args.Name,
