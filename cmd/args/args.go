@@ -9,7 +9,6 @@ type args struct {
 	File      string
 
 	AddReleaseCmd struct {
-		Repo    string
 		Chart   string
 		Version string
 	}

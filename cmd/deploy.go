@@ -21,12 +21,14 @@ func init() {
 		deployCmd.AddCommand(deployReleaseCmd)
 		deployReleaseCmd.Flags().StringVarP(&Args.Name, "name", "", "", "Release name")
 		deployReleaseCmd.Flags().BoolVarP(&Args.DeployCmd.All, "all", "", false, "Deploy all releases")
+		deployReleaseCmd.Flags().BoolVarP(&Args.Force, "force", "", false, "Force deploy")
 	}
 
 	{
 		deployCmd.AddCommand(deploySingleCmd)
 		deploySingleCmd.Flags().StringVarP(&Args.Name, "name", "", "", "single name")
 		deploySingleCmd.Flags().BoolVarP(&Args.DeployCmd.All, "all", "", false, "Deploy all releases")
+		deploySingleCmd.Flags().BoolVarP(&Args.Force, "force", "", false, "Force deploy")
 	}
 
 	{
@@ -35,6 +37,7 @@ func init() {
 
 	{
 		deployCmd.AddCommand(deployAllCmd)
+		deployAllCmd.Flags().BoolVarP(&Args.Force, "force", "", false, "Force deploy")
 	}
 }
 
@@ -59,17 +62,13 @@ var deployCmd = &cobra.Command{
 	},
 }
 
-func deployReleaseHelper(release types.ManifestRelease) error {
+func deployReleaseHelper(release types.ManifestRelease, chart types.HelmChartMulti) error {
 	data, err := utils.ReadFile(ReleasePath(release.Name))
 	if err != nil {
 		logger.Fatalf("failed to read release file: %s", err)
 	}
 
-	result, err := UpgradeDocument(data, types.HelmChart{
-		Version:    release.Chart.Version,
-		RepoName:   release.Chart.RepoName(),
-		AppVersion: release.Chart.AppVersion,
-	}, false)
+	result, err := UpgradeDocument(data, chart, false)
 	if err != nil {
 		return err
 	}
@@ -80,7 +79,7 @@ func deployReleaseHelper(release types.ManifestRelease) error {
 		}
 	}
 
-	return DeployRelease(release, result.EnvSubbedValues, result.EnvSubbedDocument)
+	return DeployRelease(release, chart.HelmChart, result.EnvSubbedValues, result.EnvSubbedDocument)
 }
 
 var deployReleaseCmd = &cobra.Command{
@@ -117,15 +116,34 @@ var deployReleaseCmd = &cobra.Command{
 		zap.S().Infof("* %s *", color.BlueString("Helm Manager Deploy Release"))
 	}),
 	Run: func(cmd *cobra.Command, _ []string) {
+		charts, err := HelmChartsFuture.Get()
+		if err != nil {
+			logger.Fatalf("failed to get helm charts: %s", err)
+		}
+
 		if Args.DeployCmd.All {
 			for _, release := range Manifest.Releases {
-				if err := deployReleaseHelper(release); err != nil {
+				mutliChart := types.HelmChartMultiArray(charts).FindChart(release.Chart.RepoName())
+				chart := mutliChart.FindVersion(release.Chart.Version)
+				if chart.Version == "" {
+					logger.Fatalf("no version %s found for %s", release.Chart.Version, release.Chart.RepoName())
+				}
+
+				mutliChart.HelmChart = types.HelmChart(chart)
+				if err := deployReleaseHelper(release, mutliChart); err != nil {
 					logger.Fatalf("failed to deploy release: %s", err)
 				}
 			}
 		} else {
 			release := Manifest.ReleaseByName(Args.Name)
-			if err := deployReleaseHelper(release); err != nil {
+			mutliChart := types.HelmChartMultiArray(charts).FindChart(release.Chart.RepoName())
+			chart := mutliChart.FindVersion(release.Chart.Version)
+			if chart.Version == "" {
+				logger.Fatalf("no version %s found for %s", release.Chart.Version, release.Chart.RepoName())
+			}
+
+			mutliChart.HelmChart = types.HelmChart(chart)
+			if err := deployReleaseHelper(release, mutliChart); err != nil {
 				logger.Fatalf("failed to deploy release: %s", err)
 			}
 		}
@@ -149,27 +167,27 @@ func deployReposHelper() {
 		logger.Fatalf("failed to get helm repos: %s", err)
 	}
 
-	repoMp := map[string]string{}
+	repoMp := map[string]types.HelmRepo{}
 	for _, repo := range repos {
-		repoMp[repo.Name] = repo.URL
+		repoMp[repo.Name] = repo
 	}
 
 	var resp []byte
 	for _, repo := range Manifest.Repos {
-		if _, ok := repoMp[repo.Name]; !ok {
-			resp, err = external.Helm.AddRepo(repo.Name, repo.URL)
+		if loadedRepo, ok := repoMp[repo.Name]; !ok {
+			resp, err = external.Helm.AddRepo(repo)
 			if err != nil {
 				logger.Fatalf("failed to add repo: %s\n%s", err, resp)
 			}
 		} else {
-			if repoMp[repo.Name] != repo.URL {
+			if loadedRepo.URL != repo.URL {
 				if args.Args.Force {
-					resp, err = external.Helm.RemoveRepo(repo.Name)
+					resp, err = external.Helm.RemoveRepo(loadedRepo)
 					if err != nil {
 						logger.Fatalf("failed to remove repo: %s\n%s", err, resp)
 					}
 
-					resp, err = external.Helm.AddRepo(repo.Name, repo.URL)
+					resp, err = external.Helm.AddRepo(repo)
 					if err != nil {
 						logger.Fatalf("failed to add repo: %s\n%s", err, resp)
 					}
@@ -265,8 +283,20 @@ var deployAllCmd = &cobra.Command{
 
 		deployReposHelper()
 
+		charts, err := HelmChartsFuture.Get()
+		if err != nil {
+			logger.Fatalf("failed to get helm charts: %s", err)
+		}
+
 		for _, release := range Manifest.Releases {
-			if err := deployReleaseHelper(release); err != nil {
+			mutliChart := types.HelmChartMultiArray(charts).FindChart(release.Chart.RepoName())
+			chart := mutliChart.FindVersion(release.Chart.Version)
+			if chart.Version == "" {
+				logger.Fatalf("no version %s found for %s", release.Chart.Version, release.Chart.RepoName())
+			}
+
+			mutliChart.HelmChart = types.HelmChart(chart)
+			if err := deployReleaseHelper(release, mutliChart); err != nil {
 				logger.Fatalf("failed to deploy release: %s", err)
 			}
 		}

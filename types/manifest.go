@@ -8,10 +8,11 @@ import (
 var GlobalManifest = &Manifest{}
 
 type Manifest struct {
-	Repos      []ManifestRepo     `yaml:"repos"`       // Helm repos
-	AllowedEnv []SelectableString `yaml:"allowed_env"` // Allowed environment variables
-	Releases   []ManifestRelease  `yaml:"releases"`    // Helm releases
-	Singles    []ManifestSingle   `yaml:"singles"`     // Single files
+	Repos       []ManifestRepo     `yaml:"repos"`        // Helm repos
+	AllowedEnv  []SelectableString `yaml:"allowed_env"`  // Allowed environment variables
+	Releases    []ManifestRelease  `yaml:"releases"`     // Helm releases
+	Singles     []ManifestSingle   `yaml:"singles"`      // Single files
+	LocalCharts []SelectableString `yaml:"local_charts"` // Local charts
 
 	Exists bool `yaml:"-"` // Whether the manifest exists
 }
@@ -116,6 +117,10 @@ func (m ManifestChart) String() string {
 }
 
 func (m ManifestChart) RepoName() string {
+	if m.Repo == "" {
+		return m.Name
+	}
+
 	return fmt.Sprintf("%s/%s", m.Repo, m.Name)
 }
 

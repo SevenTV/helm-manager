@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
 	"strings"
 
 	"github.com/fatih/color"
@@ -38,7 +39,6 @@ func init() {
 	{
 		addCmd.AddCommand(addReleaseCmd)
 		addReleaseCmd.Flags().StringVar(&Args.Name, "name", "", "Name of the release")
-		addReleaseCmd.Flags().StringVar(&Args.AddReleaseCmd.Repo, "repo", "", "Repo of the release")
 		addReleaseCmd.Flags().StringVar(&Args.AddReleaseCmd.Chart, "chart", "", "Chart of the release")
 		addReleaseCmd.Flags().StringVar(&Args.AddReleaseCmd.Version, "version", "", "Version of the release")
 		addReleaseCmd.Flags().StringVarP(&Args.File, "file", "f", "", "File to create the release from")
@@ -50,6 +50,11 @@ func init() {
 	{
 		addCmd.AddCommand(addEnvCmd)
 		addEnvCmd.Flags().StringVar(&Args.Name, "name", "", "Name of the env variable to be whitelisted")
+	}
+
+	{
+		addCmd.AddCommand(addLocalChartCmd)
+		addLocalChartCmd.Flags().StringVar(&Args.File, "path", "", "Path to the local chart")
 	}
 }
 
@@ -264,31 +269,25 @@ var addReleaseCmd = &cobra.Command{
 		ManifestExist(cmd)
 	}),
 	Run: func(cmd *cobra.Command, args []string) {
-		charts := HelmChartsFuture.GetOrPanic()
-		var chart types.HelmChartMulti
-		for _, c := range charts {
-			if c.RepoName == Args.AddReleaseCmd.Chart {
-				chart = c
-				break
-			}
+		charts, err := HelmChartsFuture.Get()
+		if err != nil {
+			logger.Fatalf("failed to get helm charts: %s", err)
 		}
 
-		var version types.HelmChartMultiVersion
-		for _, v := range chart.Versions {
-			if v.Version == Args.AddReleaseCmd.Version {
-				version = v
-				break
-			}
+		mutliChart := types.HelmChartMultiArray(charts).FindChart(Args.AddReleaseCmd.Chart)
+		chart := mutliChart.FindVersion(Args.AddReleaseCmd.Version)
+		if chart.Version == "" {
+			logger.Fatalf("no version %s found for %s", Args.AddReleaseCmd.Version, Args.AddReleaseCmd.Chart)
 		}
 
 		release := types.ManifestRelease{
 			Name:      Args.Name,
 			Namespace: Args.Namespace,
 			Chart: types.ManifestChart{
-				Name:       version.Name(),
-				Version:    version.Version,
-				AppVersion: version.AppVersion,
-				Repo:       version.Repo(),
+				Name:       chart.Name(),
+				Version:    chart.Version,
+				AppVersion: chart.AppVersion,
+				Repo:       chart.Repo(),
 			},
 		}
 
@@ -299,7 +298,8 @@ var addReleaseCmd = &cobra.Command{
 			logger.Fatalf("Failed to read file: %s", err)
 		}
 
-		result, err := UpgradeDocument(data, types.HelmChart(version), true)
+		mutliChart.HelmChart = types.HelmChart(chart)
+		result, err := UpgradeDocument(data, mutliChart, true)
 		if err != nil {
 			logger.Fatal(err)
 		}
@@ -314,7 +314,7 @@ var addReleaseCmd = &cobra.Command{
 		}
 
 		if Args.Deploy {
-			err = DeployRelease(release, result.EnvSubbedValues, result.EnvSubbedDocument)
+			err = DeployRelease(release, types.HelmChart(chart), result.EnvSubbedValues, result.EnvSubbedDocument)
 			if err != nil {
 				logger.Fatal(err)
 			}
@@ -499,10 +499,11 @@ var addRepoCmd = &cobra.Command{
 			}
 		}
 
-		Manifest.Repos = append(Manifest.Repos, types.ManifestRepo{
+		repo := types.ManifestRepo{
 			Name: Args.Name,
 			URL:  Args.AddRepoCmd.URL,
-		})
+		}
+		Manifest.Repos = append(Manifest.Repos)
 
 		done := utils.Loader(utils.LoaderOptions{
 			FetchingText: "Adding repo to manifest",
@@ -511,7 +512,7 @@ var addRepoCmd = &cobra.Command{
 		})
 
 		if !exists {
-			resp, err := external.Helm.AddRepo(Args.Name, Args.AddRepoCmd.URL)
+			resp, err := external.Helm.AddRepo(repo)
 			if err != nil {
 				done(false)
 				logger.Fatalf("Failed to execute helm command: %v\n%s", err, resp)
@@ -564,5 +565,56 @@ var addEnvCmd = &cobra.Command{
 		}
 
 		logger.Infof("Added %s to the env variable whitelist", color.GreenString(string(env)))
+	},
+}
+
+var addLocalChartCmd = &cobra.Command{
+	Use:     "local-chart",
+	Short:   "Add a local chart to the manifest",
+	Long:    "Add a local chart to the manifest",
+	Example: "   helm-manager add local-chart [PATH]\n   helm-manager add local-chart /path/to/chart" + USAGE_EXTRA,
+	Args: ui.PositionalArgs([]ui.RequiredArg{
+		ui.Arg[string]{
+			Name:       "path",
+			Ptr:        &Args.File,
+			Positional: true,
+			Validator: types.ValidatorFunction[string](func(pth string) error {
+				chart := types.HelmChart{
+					IsLocal:   true,
+					LocalPath: pth,
+				}
+
+				if err := utils.ParseLocalChartYaml(&chart); err != nil {
+					return fmt.Errorf("failed to parse Chart.yaml at %s", path.Join(pth, "Chart.yaml"))
+				}
+
+				charts, err := LocalChartsFuture.Get()
+				if err != nil {
+					return fmt.Errorf("failed to get local charts: %v", err)
+				}
+
+				existing := types.HelmChartMultiArray(charts).FindChart(chart.RepoName).FindVersion(chart.Version)
+				if existing.Version != "" {
+					return fmt.Errorf("chart already added to manifest")
+				}
+
+				return nil
+			}),
+			UI: ui.PromptUiFunc[string]("Path"),
+		},
+	}, func(cmd *cobra.Command) {
+		zap.S().Infof("* %s *", color.GreenString("Helm Manager Add Local Chart"))
+		ManifestExist(cmd)
+	}),
+	Run: func(cmd *cobra.Command, _ []string) {
+		Manifest.LocalCharts = append(Manifest.LocalCharts, types.SelectableString(Args.File))
+
+		if !Args.DryRun {
+			utils.WriteManifest(Args.Context)
+		} else {
+			logger.Info("Dry run mode, not writing manifest")
+		}
+
+		logger.Infof("Added local chart \"%s\" to the manifest", color.GreenString(Args.File))
 	},
 }

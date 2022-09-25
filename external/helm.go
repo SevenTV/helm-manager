@@ -13,8 +13,8 @@ type _helm struct{}
 
 var Helm = _helm{}
 
-func (_helm) AddRepo(name string, url string) ([]byte, error) {
-	return utils.ExecuteCommand("helm", "repo", "add", name, url)
+func (_helm) AddRepo(repo types.ManifestRepo) ([]byte, error) {
+	return utils.ExecuteCommand("helm", "repo", "add", repo.Name, repo.URL)
 }
 
 func (_helm) UpdateRepos() ([]byte, error) {
@@ -80,8 +80,8 @@ func (_helm) ListCharts() ([]types.HelmChartMulti, error) {
 	return helmChartMultiList, nil
 }
 
-func (_helm) GetReleaseValues(name string, namespace string) (*yaml.Node, error) {
-	data, err := utils.ExecuteCommand("helm", "get", "values", name, "-n", namespace, "-o", "yaml")
+func (_helm) GetReleaseValues(release types.HelmRelease) (*yaml.Node, error) {
+	data, err := utils.ExecuteCommand("helm", "get", "values", release.Name, "-n", release.Namespace, "-o", "yaml")
 	if err != nil {
 		return nil, err
 	}
@@ -94,8 +94,16 @@ func (_helm) GetReleaseValues(name string, namespace string) (*yaml.Node, error)
 	return node, err
 }
 
-func (_helm) GetDefaultChartValues(chart string, version string) (*yaml.Node, error) {
-	data, err := utils.ExecuteCommand("helm", "show", "values", chart, "--version", version)
+func (_helm) GetDefaultChartValues(chart types.HelmChart) (*yaml.Node, error) {
+	args := []string{
+		"show",
+		"values",
+		chart.HelmName(),
+	}
+	if !chart.IsLocal && chart.Version != "" {
+		args = append(args, "--version", chart.Version)
+	}
+	data, err := utils.ExecuteCommand("helm", args...)
 	if err != nil {
 		return nil, err
 	}
@@ -108,8 +116,8 @@ func (_helm) GetDefaultChartValues(chart string, version string) (*yaml.Node, er
 	return node, err
 }
 
-func (_helm) GetDeployedReleaseValues(name string, namespace string) (*yaml.Node, error) {
-	data, err := utils.ExecuteCommand("helm", "get", "values", name, "-n", namespace, "-o", "yaml", "--all")
+func (_helm) GetDeployedReleaseValues(release types.HelmRelease) (*yaml.Node, error) {
+	data, err := utils.ExecuteCommand("helm", "get", "values", release.Name, "-n", release.Namespace, "-o", "yaml", "--all")
 	if err != nil {
 		return nil, err
 	}
@@ -122,19 +130,20 @@ func (_helm) GetDeployedReleaseValues(name string, namespace string) (*yaml.Node
 	return node, err
 }
 
-func (_helm) UpgradeRelease(name string, chart string, version string, namespace string, values []byte, dryRun bool, debug bool) ([]byte, error) {
+func (_helm) UpgradeRelease(release types.ManifestRelease, chart types.HelmChart, values []byte, dryRun bool, debug bool) ([]byte, error) {
 	args := []string{
 		"upgrade",
 		"--install",
 		"--namespace",
-		namespace,
+		release.Namespace,
 		"--create-namespace",
-		name,
-		chart,
-		"--version",
-		version,
+		release.Name,
+		chart.HelmName(),
 		"-f",
 		"-",
+	}
+	if !chart.IsLocal && chart.Version != "" {
+		args = append(args, "--version", chart.Version)
 	}
 
 	if dryRun {
@@ -147,12 +156,12 @@ func (_helm) UpgradeRelease(name string, chart string, version string, namespace
 	return utils.ExecuteCommandStdin(bytes.NewReader(values), "helm", args...)
 }
 
-func (_helm) UninstallRelease(name string, namespace string, dryRun bool) ([]byte, error) {
+func (_helm) UninstallRelease(release types.ManifestRelease, dryRun bool) ([]byte, error) {
 	args := []string{
 		"uninstall",
 		"--namespace",
-		namespace,
-		name,
+		release.Namespace,
+		release.Name,
 	}
 
 	if dryRun {
@@ -162,6 +171,6 @@ func (_helm) UninstallRelease(name string, namespace string, dryRun bool) ([]byt
 	return utils.ExecuteCommand("helm", args...)
 }
 
-func (_helm) RemoveRepo(name string) ([]byte, error) {
-	return utils.ExecuteCommand("helm", "repo", "remove", name)
+func (_helm) RemoveRepo(repo types.HelmRepo) ([]byte, error) {
+	return utils.ExecuteCommand("helm", "repo", "remove", repo.Name)
 }

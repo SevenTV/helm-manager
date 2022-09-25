@@ -42,6 +42,11 @@ func init() {
 		removeCmd.AddCommand(removeEnvCmd)
 		removeEnvCmd.Flags().StringVar(&Args.Name, "name", "", "Name of the env variable to be whitelisted")
 	}
+
+	{
+		removeCmd.AddCommand(removeLocalChartCmd)
+		removeLocalChartCmd.Flags().StringVar(&Args.File, "path", "", "Path to the local chart")
+	}
 }
 
 var removeCmd = &cobra.Command{
@@ -149,7 +154,7 @@ var removeReleaseCmd = &cobra.Command{
 				FailureText:  "Failed to delete release",
 			})
 
-			resp, err := external.Helm.UninstallRelease(release.Name, release.Namespace, Args.DryRun)
+			resp, err := external.Helm.UninstallRelease(release, Args.DryRun)
 			done(err == nil)
 			if err != nil {
 				logger.Fatalf("Failed to delete release: %s\n%s", err, resp)
@@ -315,8 +320,19 @@ var removeRepoCmd = &cobra.Command{
 		if Args.Delete {
 			logger.Infof("Deleting %s repo", color.RedString(string(repo)))
 			if !Args.DryRun {
-				if resp, err := external.Helm.RemoveRepo(string(repo)); err != nil {
-					logger.Error("failed to delete repo %v\n%s", err, resp)
+				helmRepos, err := HelmRepoFuture.Get()
+				if err != nil {
+					logger.Error("failed to get helm repos", zap.Error(err))
+				} else {
+					for _, r := range helmRepos {
+						if strings.ToLower(r.Name) == repo {
+							if resp, err := external.Helm.RemoveRepo(r); err != nil {
+								logger.Error("failed to delete repo %v\n%s", err, resp)
+							}
+
+							break
+						}
+					}
 				}
 			} else {
 				logger.Info("Dry run mode, not deleting repo")
@@ -373,5 +389,48 @@ var removeEnvCmd = &cobra.Command{
 		}
 
 		logger.Infof("Removed %s to the env variable whitelist", color.RedString(string(env)))
+	},
+}
+
+var removeLocalChartCmd = &cobra.Command{
+	Use:   "local-chart",
+	Short: "Remove a local chart from the manifest",
+	Long:  "Remove a local chart from the manifest",
+	Args: ui.PositionalArgs([]ui.RequiredArg{
+		ui.Arg[string]{
+			Name:       "path",
+			Ptr:        &Args.File,
+			Positional: true,
+			Validator:  types.EqualValidator(types.ToStringer(`"%s" is not added as a local chart in the manifest`), types.FutureFromStringers(types.FutureFromPtr(&Manifest.LocalCharts))),
+			UI: ui.PromptUiSelectorFunc[string]("Local Chart", "Which local chart do you want to remove", func(i int) error {
+				Args.File = string(Manifest.LocalCharts[i])
+				return nil
+			}, types.FutureInterfacerArray[types.SelectableString, types.Selectable](types.FutureFromPtr(&Manifest.LocalCharts))),
+		},
+	}, func(cmd *cobra.Command) {
+		zap.S().Infof("* %s *", color.RedString("Helm Manager Remove Local Chart"))
+		ManifestExist(cmd)
+
+		if len(Manifest.LocalCharts) == 0 {
+			logger.Fatal("no local charts added to the manifest")
+		}
+	}),
+	Run: func(cmd *cobra.Command, _ []string) {
+		chart := Args.File
+
+		for i, c := range Manifest.LocalCharts {
+			if string(c) == chart {
+				Manifest.LocalCharts = append(Manifest.LocalCharts[:i], Manifest.LocalCharts[i+1:]...)
+				break
+			}
+		}
+
+		if !Args.DryRun {
+			utils.WriteManifest(Args.Context)
+		} else {
+			logger.Info("Dry run mode, not writing manifest")
+		}
+
+		logger.Infof("Removed %s from the local charts", color.RedString(string(chart)))
 	},
 }

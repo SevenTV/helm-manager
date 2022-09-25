@@ -10,7 +10,7 @@ func (h HelmChartMultiArray) FindChart(chart string) HelmChartMulti {
 	chart = strings.ToLower(chart)
 
 	for _, c := range h {
-		if strings.ToLower(c.RepoName) == chart {
+		if strings.ToLower(c.RepoName) == chart || strings.ToLower(c.Name()) == chart {
 			return c
 		}
 	}
@@ -53,6 +53,10 @@ func (h HelmChartMulti) FindVersion(version string) HelmChartMultiVersion {
 		}
 	}
 
+	if h.Version == version {
+		return HelmChartMultiVersion(h.HelmChart)
+	}
+
 	return HelmChartMultiVersion{}
 }
 
@@ -61,9 +65,24 @@ type HelmChart struct {
 	Version     string `json:"version"`
 	AppVersion  string `json:"app_version"`
 	Description string `json:"description"`
+
+	LocalPath string `json:"-"`
+	IsLocal   bool   `json:"-"`
+}
+
+func (h HelmChart) HelmName() string {
+	if h.IsLocal {
+		return h.LocalPath
+	}
+
+	return h.RepoName
 }
 
 func (h HelmChart) Repo() string {
+	if h.IsLocal {
+		return ""
+	}
+
 	split := strings.SplitN(h.RepoName, "/", 2)
 	if len(split) == 2 {
 		return split[0]
@@ -73,6 +92,10 @@ func (h HelmChart) Repo() string {
 }
 
 func (h HelmChart) Name() string {
+	if h.IsLocal {
+		return h.RepoName
+	}
+
 	split := strings.SplitN(h.RepoName, "/", 2)
 	if len(split) == 2 {
 		return split[1]

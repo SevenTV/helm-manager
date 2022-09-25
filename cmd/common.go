@@ -30,7 +30,7 @@ type UpgradeResult struct {
 	OldLock           types.ReleaseLock
 }
 
-func UpgradeDocument(data []byte, version types.HelmChart, ticker bool) (*UpgradeResult, error) {
+func UpgradeDocument(data []byte, chart types.HelmChartMulti, ticker bool) (*UpgradeResult, error) {
 	envMap := EnvMapFuture.GetOrPanic()
 
 	const (
@@ -89,15 +89,15 @@ func UpgradeDocument(data []byte, version types.HelmChart, ticker bool) (*Upgrad
 	var done func(bool)
 	if ticker {
 		done = utils.Loader(utils.LoaderOptions{
-			FetchingText: fmt.Sprintf("Fetching chart %s values", version.Name()),
-			SuccessText:  fmt.Sprintf("Fetched chart %s values", version.Name()),
-			FailureText:  fmt.Sprintf("Failed to fetch chart %s values", version.Name()),
+			FetchingText: fmt.Sprintf("Fetching chart %s values", chart.Name()),
+			SuccessText:  fmt.Sprintf("Fetched chart %s values", chart.Name()),
+			FailureText:  fmt.Sprintf("Failed to fetch chart %s values", chart.Name()),
 		})
 	} else {
 		done = func(bool) {}
 	}
 
-	node, err := external.Helm.GetDefaultChartValues(version.RepoName, version.Version)
+	node, err := external.Helm.GetDefaultChartValues(chart.HelmChart)
 	if err != nil {
 		done(false)
 		return nil, fmt.Errorf("Failed to fetch default values, %v", err)
@@ -105,17 +105,23 @@ func UpgradeDocument(data []byte, version types.HelmChart, ticker bool) (*Upgrad
 
 	defaultValues := utils.ConvertDocument(node)
 
-	if oldLock.Version != "" && oldLock.Version != version.Version {
-		node, err := external.Helm.GetDefaultChartValues(version.RepoName, oldLock.Version)
-		if err != nil {
-			done(false)
-			return nil, fmt.Errorf("Failed to parse old default values, %v", err)
+	if oldLock.Version != "" && oldLock.Version != chart.Version {
+		oldVersion := chart.FindVersion(oldLock.Version)
+		if oldVersion.Version == "" {
+			// we dont have version history for this chart
+			document.Content[DEFAULTS_IDX] = defaultValues
+		} else {
+			node, err := external.Helm.GetDefaultChartValues(types.HelmChart(oldVersion))
+			if err != nil {
+				done(false)
+				return nil, fmt.Errorf("Failed to parse old default values, %v", err)
+			}
+
+			oldDefaultValues := utils.ConvertDocument(node)
+
+			document.Content[VALUES_IDX] = utils.PruneYaml(oldDefaultValues, utils.MergeYaml(utils.RemoveYamlComments(document.Content[DEFAULTS_IDX]), document.Content[VALUES_IDX]))
+			document.Content[DEFAULTS_IDX] = defaultValues
 		}
-
-		oldDefaultValues := utils.ConvertDocument(node)
-
-		document.Content[VALUES_IDX] = utils.PruneYaml(oldDefaultValues, utils.MergeYaml(utils.RemoveYamlComments(document.Content[DEFAULTS_IDX]), document.Content[VALUES_IDX]))
-		document.Content[DEFAULTS_IDX] = defaultValues
 	}
 
 	if document.Content[DEFAULTS_IDX] == nil {
@@ -152,8 +158,8 @@ func UpgradeDocument(data []byte, version types.HelmChart, ticker bool) (*Upgrad
 	}
 
 	newLock := types.ReleaseLock{
-		Chart:   version.RepoName,
-		Version: version.Version,
+		Chart:   chart.RepoName,
+		Version: chart.Version,
 	}
 
 	{
@@ -207,30 +213,30 @@ func SinglePath(name string) string {
 	return path.Join(Args.Context, "singles", strings.ToLower(name)+".yaml")
 }
 
-func DeployRelease(release types.ManifestRelease, values []byte, envSubbedDocument *yaml.Node) error {
+func DeployRelease(release types.ManifestRelease, chart types.HelmChart, values []byte, envSubbedDocument *yaml.Node) error {
 	if !Args.Force {
 		releases, err := HelmReleaseFuture.Get()
 		if err != nil {
 			return fmt.Errorf("Failed to get releases, %v", err)
 		}
 
-		checkValues := false
+		var deployedRelease types.HelmRelease
 		for _, r := range releases {
 			if r.Name == release.Name {
 				if r.Namespace == release.Namespace {
-					checkValues = r.Version() == release.Chart.Version
+					deployedRelease = r
 					break
 				}
 			}
 		}
-		if checkValues {
+		if deployedRelease.Name != "" {
 			// check if the release is already deployed
-			deployed, err := external.Helm.GetDeployedReleaseValues(release.Name, release.Namespace)
+			deployed, err := external.Helm.GetDeployedReleaseValues(deployedRelease)
 			if err != nil {
-				logger.Debug("Failed to get deployed values for release \"%s\", %v", release.Name, err)
+				logger.Debug("Failed to get deployed values for release \"%s\", %v", deployedRelease.Name, err)
 			} else {
 				if !utils.IsDifferent(utils.ConvertDocument(deployed), utils.ConvertDocument(envSubbedDocument)) {
-					logger.Infof("Release (%s) already deployed not redeploying, use --force to override", release.Name)
+					logger.Infof("Release (%s) already deployed not redeploying, use --force to override", deployedRelease.Name)
 					return nil
 				}
 			}
@@ -247,7 +253,7 @@ func DeployRelease(release types.ManifestRelease, values []byte, envSubbedDocume
 		FailureText:  fmt.Sprintf("Failed to deploy release %s", release.Name),
 	})
 
-	resp, err := external.Helm.UpgradeRelease(release.Name, release.Chart.RepoName(), release.Chart.Version, release.Namespace, values, Args.DryRun, Args.Force)
+	resp, err := external.Helm.UpgradeRelease(release, chart, values, Args.DryRun, Args.Force)
 	done(err == nil)
 	if err != nil {
 		return fmt.Errorf("failed to execute helm upgrade command: %v\n%s\nFailed to deploy release\n   to try again run `%s`", color.YellowString("helm-manager deploy release %s", release.Name), err, resp)

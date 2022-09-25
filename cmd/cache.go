@@ -59,7 +59,41 @@ var HelmChartsFuture = types.FutureFromFuncErr(func() ([]types.HelmChartMulti, e
 	charts, err := external.Helm.ListCharts()
 	done(err == nil)
 
+	charts = append(charts, LocalChartsFuture.GetOrPanic()...)
+
 	return charts, err
+})
+
+var LocalChartsFuture = types.FutureFromFunc(func() []types.HelmChartMulti {
+	chartMp := make(map[string]*types.HelmChartMulti, len(Manifest.LocalCharts))
+
+	for _, pth := range Manifest.LocalCharts {
+		chart := types.HelmChart{
+			LocalPath: string(pth),
+			IsLocal:   true,
+		}
+
+		if err := utils.ParseLocalChartYaml(&chart); err != nil {
+			logger.Errorf("Failed to parse local chart %s: %s", pth, err)
+			continue
+		}
+
+		if c, ok := chartMp[chart.RepoName]; ok {
+			c.Versions = append(c.Versions, types.HelmChartMultiVersion(chart))
+		} else {
+			chartMp[chart.RepoName] = &types.HelmChartMulti{
+				HelmChart: chart,
+				Versions:  []types.HelmChartMultiVersion{types.HelmChartMultiVersion(chart)},
+			}
+		}
+	}
+
+	charts := make([]types.HelmChartMulti, 0, len(chartMp))
+	for _, c := range chartMp {
+		charts = append(charts, *c)
+	}
+
+	return charts
 })
 
 var UpdateHelmRepoFuture = types.FutureFromFuncErr(func() (bool, error) {
@@ -75,7 +109,7 @@ var UpdateHelmRepoFuture = types.FutureFromFuncErr(func() (bool, error) {
 
 type HelmReleaseChart struct {
 	types.HelmRelease
-	Chart types.HelmChart
+	Chart types.HelmChartMulti
 }
 
 var HelmReleaseChartFuture = types.FutureFromFuncErr(func() ([]HelmReleaseChart, error) {
@@ -91,20 +125,15 @@ var HelmReleaseChartFuture = types.FutureFromFuncErr(func() ([]HelmReleaseChart,
 
 	ret := []HelmReleaseChart{}
 
-next_release:
 	for _, release := range releases {
-		for _, chart := range charts {
-			if strings.ToLower(release.Chart()) == strings.ToLower(chart.Name()) {
-				for _, version := range chart.Versions {
-					if strings.ToLower(release.Version()) == strings.ToLower(version.Version) {
-						ret = append(ret, HelmReleaseChart{
-							HelmRelease: release,
-							Chart:       types.HelmChart(version),
-						})
-						continue next_release
-					}
-				}
-			}
+		multiChart := types.HelmChartMultiArray(charts).FindChart(release.Chart())
+		chart := multiChart.FindVersion(release.Version())
+		if chart.Version != "" {
+			multiChart.HelmChart = types.HelmChart(chart)
+			ret = append(ret, HelmReleaseChart{
+				HelmRelease: release,
+				Chart:       multiChart,
+			})
 		}
 	}
 

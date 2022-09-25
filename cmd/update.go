@@ -123,12 +123,11 @@ var updateCmd = &cobra.Command{
 		}
 	}),
 	Run: func(cmd *cobra.Command, _ []string) {
+		charts, err := HelmChartsFuture.Get()
+		if err != nil {
+			logger.Fatalf("failed to get helm charts: %s", err)
+		}
 		if Args.UpdateCmd.List {
-			charts, err := HelmChartsFuture.Get()
-			if err != nil {
-				logger.Fatal(err)
-			}
-
 			mapChart := map[string]types.HelmChartMulti{}
 			for _, chart := range charts {
 				mapChart[chart.RepoName] = chart
@@ -169,28 +168,28 @@ var updateCmd = &cobra.Command{
 
 		release, idx := Manifest.ReleaseIdxByName(Args.Name)
 
-		chart, err := HelmChartsFuture.Get()
-		if err != nil {
-			logger.Fatal(err)
+		multiChart := types.HelmChartMultiArray(charts).FindChart(release.Chart.RepoName())
+		chart := multiChart.FindVersion(Args.UpdateCmd.Version)
+		if chart.Version == "" {
+			logger.Fatalf("no version %s found for %s", Args.UpdateCmd.Version, release.Chart.RepoName())
 		}
-
-		version := types.HelmChartMultiArray(chart).FindChart(release.Chart.RepoName()).FindVersion(Args.UpdateCmd.Version)
 
 		data, err := utils.ReadFile(ReleasePath(Args.Name))
 		if err != nil {
 			logger.Fatalf("failed to read release file: %s", err)
 		}
 
-		result, err := UpgradeDocument(data, types.HelmChart(version), true)
+		multiChart.HelmChart = types.HelmChart(chart)
+		result, err := UpgradeDocument(data, multiChart, true)
 		if err != nil {
 			logger.Fatal(err)
 		}
 
 		release.Chart = types.ManifestChart{
-			Name:       version.Name(),
-			Version:    version.Version,
-			AppVersion: version.AppVersion,
-			Repo:       version.Repo(),
+			Name:       chart.Name(),
+			Version:    chart.Version,
+			AppVersion: chart.AppVersion,
+			Repo:       chart.Repo(),
 		}
 
 		Manifest.Releases[idx] = release
@@ -205,7 +204,7 @@ var updateCmd = &cobra.Command{
 		}
 
 		if Args.Deploy {
-			err = DeployRelease(release, result.EnvSubbedValues, result.EnvSubbedDocument)
+			err = DeployRelease(release, types.HelmChart(chart), result.EnvSubbedValues, result.EnvSubbedDocument)
 			if err != nil {
 				logger.Fatal(err)
 			}

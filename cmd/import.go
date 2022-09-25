@@ -271,7 +271,7 @@ var importReleaseCmd = &cobra.Command{
 		}
 
 		importRelease := func(release HelmReleaseChart) {
-			releaseValues, err := external.Helm.GetReleaseValues(release.Name, release.Namespace)
+			releaseValues, err := external.Helm.GetReleaseValues(release.HelmRelease)
 			if err != nil {
 				logger.Fatalf("Could not get release values: %s", err)
 			}
