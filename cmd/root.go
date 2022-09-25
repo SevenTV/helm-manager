@@ -29,6 +29,8 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&Args.Context, "context", "c", wd, "Context to use, working directory")
 
 	cobra.OnInitialize(func() {
+		Args.Context = utils.MergeRelativePath(wd, Args.Context)
+
 		err := utils.ReadManifest(Args.Context)
 		if err != nil {
 			logger.Fatal(err)

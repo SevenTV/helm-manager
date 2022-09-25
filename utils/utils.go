@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path"
 	"strings"
 
 	"go.uber.org/zap"
@@ -58,4 +59,12 @@ func ReadFile(path string) ([]byte, error) {
 	}
 
 	return os.ReadFile(path)
+}
+
+func MergeRelativePath(base, relative string) string {
+	if path.IsAbs(relative) {
+		return relative
+	}
+
+	return path.Join(base, relative)
 }

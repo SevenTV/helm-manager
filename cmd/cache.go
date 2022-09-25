@@ -69,7 +69,7 @@ var LocalChartsFuture = types.FutureFromFunc(func() []types.HelmChartMulti {
 
 	for _, pth := range Manifest.LocalCharts {
 		chart := types.HelmChart{
-			LocalPath: string(pth),
+			LocalPath: utils.MergeRelativePath(Args.Context, string(pth)),
 			IsLocal:   true,
 		}
 
@@ -154,7 +154,7 @@ var EnvMapFuture = types.FutureFromFunc(func() map[string]string {
 		}
 	}
 
-	envData, err := os.ReadFile(Args.EnvFile)
+	envData, err := os.ReadFile(utils.MergeRelativePath(Args.Context, Args.EnvFile))
 	if Args.EnvFile != ".env" && Args.EnvFile != "" && err != nil {
 		logger.Fatalf("Failed to read env file \"%s\"\n  %v", Args.EnvFile, err)
 	}
