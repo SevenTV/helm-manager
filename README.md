@@ -14,7 +14,7 @@ Essentially, this tool is designed to maintain `package.json` like manifest whic
 
 ## Requirements
 
-You need to have the `helm` cli tool installed and on the executable must be on the path.
+You need to have the `helm` and `kubectl` cli tools installed and on the executable must be on the path.
 
 ## Building
 
