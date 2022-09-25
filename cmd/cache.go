@@ -143,6 +143,8 @@ var HelmReleaseChartFuture = types.FutureFromFuncErr(func() ([]HelmReleaseChart,
 var EnvMapFuture = types.FutureFromFunc(func() map[string]string {
 	envMap := map[string]string{}
 	allowedEnvMp := map[string]bool{}
+	allowedEnvMp["HELM_MANAGER_NAME"] = true
+
 	for _, env := range Manifest.AllowedEnv {
 		if value, ok := os.LookupEnv(env.String()); ok {
 			allowedEnvMp[env.String()] = false
@@ -173,10 +175,18 @@ var EnvMapFuture = types.FutureFromFunc(func() map[string]string {
 		}
 	}
 
+	delete(allowedEnvMp, "HELM_MANAGER_NAME")
+
 	for env, unused := range allowedEnvMp {
 		if unused {
 			logger.Fatalf("Env variable %s is not specified.", strings.ToUpper(env))
 		}
+	}
+
+	if Manifest.Name != "" && envMap["HELM_MANAGER_NAME"] != Manifest.Name {
+		logger.Fatalf("Env variable HELM_MANAGER_NAME is not equal to manifest name.")
+	} else if Manifest.Name == "" {
+		logger.Warn("Manifest name is not specified in manifest file this is not recommended.")
 	}
 
 	return envMap

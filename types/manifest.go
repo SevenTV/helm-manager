@@ -8,6 +8,7 @@ import (
 var GlobalManifest = &Manifest{}
 
 type Manifest struct {
+	Name        string             `yaml:"name"`
 	Repos       []ManifestRepo     `yaml:"repos"`        // Helm repos
 	AllowedEnv  []SelectableString `yaml:"allowed_env"`  // Allowed environment variables
 	Releases    []ManifestRelease  `yaml:"releases"`     // Helm releases

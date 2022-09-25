@@ -34,11 +34,13 @@ func init() {
 			logger.Fatal(err)
 		}
 
+		if Manifest.Exists {
+			EnvMapFuture.GetOrPanic()
+		}
+
 		if Args.Debug {
 			logger.SetDebug(true)
 		}
-
-		EnvMapFuture.GetOrPanic()
 	})
 }
 
