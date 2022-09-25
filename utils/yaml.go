@@ -333,18 +333,11 @@ func RemoveYamlComments(node *yaml.Node) *yaml.Node {
 	newNode := &yaml.Node{}
 	copier.CopyWithOption(newNode, node, copier.Option{DeepCopy: true})
 
-	var removeComments func(node *yaml.Node)
-	removeComments = func(node *yaml.Node) {
+	TraverseYamlNode(newNode, func(node *yaml.Node) {
 		node.HeadComment = ""
 		node.LineComment = ""
 		node.FootComment = ""
-
-		for _, child := range node.Content {
-			removeComments(child)
-		}
-	}
-
-	removeComments(newNode)
+	})
 
 	return newNode
 }
