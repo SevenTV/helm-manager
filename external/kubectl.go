@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"strings"
 
-	"github.com/seventv/helm-manager/utils"
+	"github.com/seventv/helm-manager/v2/utils"
 )
 
 type _kubectl struct{}

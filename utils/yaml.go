@@ -6,7 +6,7 @@ import (
 	"io"
 
 	"github.com/jinzhu/copier"
-	"github.com/seventv/helm-manager/logger"
+	"github.com/seventv/helm-manager/v2/logger"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )

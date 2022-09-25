@@ -6,7 +6,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/gosuri/uilive"
-	"github.com/seventv/helm-manager/constants"
+	"github.com/seventv/helm-manager/v2/constants"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )

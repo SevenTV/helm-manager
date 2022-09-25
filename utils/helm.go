@@ -4,7 +4,7 @@ import (
 	"os"
 	"path"
 
-	"github.com/seventv/helm-manager/types"
+	"github.com/seventv/helm-manager/v2/types"
 	"gopkg.in/yaml.v3"
 )
 

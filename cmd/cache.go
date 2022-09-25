@@ -4,10 +4,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/seventv/helm-manager/external"
-	"github.com/seventv/helm-manager/logger"
-	"github.com/seventv/helm-manager/types"
-	"github.com/seventv/helm-manager/utils"
+	"github.com/seventv/helm-manager/v2/external"
+	"github.com/seventv/helm-manager/v2/logger"
+	"github.com/seventv/helm-manager/v2/types"
+	"github.com/seventv/helm-manager/v2/utils"
 )
 
 var NamespaceFuture = types.FutureFromFuncErr(func() ([]string, error) {

@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 
-	"github.com/seventv/helm-manager/types"
-	"github.com/seventv/helm-manager/utils"
+	"github.com/seventv/helm-manager/v2/types"
+	"github.com/seventv/helm-manager/v2/utils"
 	"gopkg.in/yaml.v3"
 )
 

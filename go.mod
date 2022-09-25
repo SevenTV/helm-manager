@@ -1,4 +1,4 @@
-module github.com/seventv/helm-manager
+module github.com/seventv/helm-manager/v2
 
 go 1.19
 

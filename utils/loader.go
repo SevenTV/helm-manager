@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/fatih/color"
-	"github.com/seventv/helm-manager/constants"
-	"github.com/seventv/helm-manager/logger"
+	"github.com/seventv/helm-manager/v2/constants"
+	"github.com/seventv/helm-manager/v2/logger"
 	"go.uber.org/zap"
 )
 

@@ -39,5 +39,5 @@ make <darwin/darwin_amd64/darwin_arm64>
 ## Installing
 
 ```bash
-go install github.com/seventv/helm-manager
+go install github.com/seventv/helm-manager/v2
 ```

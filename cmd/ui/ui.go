@@ -6,10 +6,10 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/manifoldco/promptui"
-	"github.com/seventv/helm-manager/cmd/args"
-	"github.com/seventv/helm-manager/constants"
-	"github.com/seventv/helm-manager/types"
-	"github.com/seventv/helm-manager/utils"
+	"github.com/seventv/helm-manager/v2/cmd/args"
+	"github.com/seventv/helm-manager/v2/constants"
+	"github.com/seventv/helm-manager/v2/types"
+	"github.com/seventv/helm-manager/v2/utils"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )

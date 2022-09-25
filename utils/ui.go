@@ -5,8 +5,8 @@ import (
 	"sort"
 
 	"github.com/manifoldco/promptui"
-	"github.com/seventv/helm-manager/logger"
-	"github.com/seventv/helm-manager/types"
+	"github.com/seventv/helm-manager/v2/logger"
+	"github.com/seventv/helm-manager/v2/types"
 )
 
 func Selector(short string, labelLong string, help bool, search bool, options []types.Selectable) int {

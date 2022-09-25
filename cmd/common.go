@@ -7,10 +7,10 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
-	"github.com/seventv/helm-manager/external"
-	"github.com/seventv/helm-manager/logger"
-	"github.com/seventv/helm-manager/types"
-	"github.com/seventv/helm-manager/utils"
+	"github.com/seventv/helm-manager/v2/external"
+	"github.com/seventv/helm-manager/v2/logger"
+	"github.com/seventv/helm-manager/v2/types"
+	"github.com/seventv/helm-manager/v2/utils"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )

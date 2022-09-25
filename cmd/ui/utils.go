@@ -6,10 +6,10 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
-	cmdErrors "github.com/seventv/helm-manager/cmd/errors"
-	"github.com/seventv/helm-manager/logger"
-	"github.com/seventv/helm-manager/types"
-	"github.com/seventv/helm-manager/utils"
+	cmdErrors "github.com/seventv/helm-manager/v2/cmd/errors"
+	"github.com/seventv/helm-manager/v2/logger"
+	"github.com/seventv/helm-manager/v2/types"
+	"github.com/seventv/helm-manager/v2/utils"
 	"github.com/spf13/cobra"
 )
 

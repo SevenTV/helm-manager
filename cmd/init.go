@@ -5,8 +5,8 @@ import (
 	"path"
 
 	"github.com/fatih/color"
-	"github.com/seventv/helm-manager/logger"
-	"github.com/seventv/helm-manager/utils"
+	"github.com/seventv/helm-manager/v2/logger"
+	"github.com/seventv/helm-manager/v2/utils"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )
