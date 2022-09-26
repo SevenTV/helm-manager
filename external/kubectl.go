@@ -59,3 +59,12 @@ func (_kubectl) Delete(values []byte, namespace string, dryRun bool) ([]byte, er
 
 	return utils.ExecuteCommandStdin(bytes.NewReader(values), "kubectl", args...)
 }
+
+func (_kubectl) GetCurrentContext() (string, error) {
+	resp, err := utils.ExecuteCommand("kubectl", "config", "current-context")
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(string(resp)), nil
+}

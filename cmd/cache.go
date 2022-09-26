@@ -144,6 +144,7 @@ var EnvMapFuture = types.FutureFromFunc(func() map[string]string {
 	envMap := map[string]string{}
 	allowedEnvMp := map[string]bool{}
 	allowedEnvMp["HELM_MANAGER_NAME"] = true
+	allowedEnvMp["HELM_MANAGER_CONTEXT_NAME"] = true
 
 	for _, env := range Manifest.AllowedEnv {
 		if value, ok := os.LookupEnv(env.String()); ok {
@@ -176,6 +177,7 @@ var EnvMapFuture = types.FutureFromFunc(func() map[string]string {
 	}
 
 	delete(allowedEnvMp, "HELM_MANAGER_NAME")
+	delete(allowedEnvMp, "HELM_MANAGER_CONTEXT_NAME")
 
 	for env, unused := range allowedEnvMp {
 		if unused {
@@ -187,6 +189,17 @@ var EnvMapFuture = types.FutureFromFunc(func() map[string]string {
 		logger.Fatalf("Env variable HELM_MANAGER_NAME is not equal to manifest name.")
 	} else if Manifest.Name == "" {
 		logger.Warn("Manifest name is not specified in manifest file this is not recommended.")
+	}
+
+	context, err := external.Kubectl.GetCurrentContext()
+	if err != nil {
+		logger.Fatalf("Failed to get current kubectl context: %v", err)
+	}
+
+	if envMap["HELM_MANAGER_CONTEXT_NAME"] != "" && envMap["HELM_MANAGER_CONTEXT_NAME"] != context {
+		logger.Fatalf("Env variable HELM_MANAGER_CONTEXT_NAME is not equal to current kubectl context.")
+	} else if envMap["HELM_MANAGER_CONTEXT_NAME"] == "" {
+		logger.Warn("Env variable HELM_MANAGER_CONTEXT_NAME is not specified this is not recommended.")
 	}
 
 	return envMap
